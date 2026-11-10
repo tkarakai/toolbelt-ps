@@ -31,8 +31,9 @@ Validation on macOS arm64, Bun 1.4.2:
 The clean package probe only observes the machine's process list. It sends no mutating
 process/terminal actions. Real user jobs and dotfiles are never modified by these tests.
 
-Remaining integration gates: host installer/transaction integration and real renderer
-visual/keyboard tester acceptance. These are not claimed complete by the headless checks above.
+Real public GitHub installer/PluginHost integration and native acceptance are recorded
+below and in docs/native-acceptance.md. Host crash/transaction tests belong to Toolbelt.
+Exact signed-tester capture and wide-inspector visual limits are stated explicitly.
 
 The three original engine test suites were recovered from the pinned Running provenance
 commit into `test/engine`: 18 passing tests (origin, fingerprint, serve). They are now
