@@ -41,7 +41,9 @@ Observe real processes only; never test stop, restart, focus or terminal typing 
 No sibling Toolbelt or Running source checkout is needed. See
 [architecture and maintenance](docs/architecture.md), the
 [engine/TUI reference](src/running/README.md) and
-[attribution](docs/running-provenance-original.md).
+[attribution](docs/running-provenance-original.md). The shared
+[Toolbelt plugin authoring and update guide](https://github.com/tkarakai/toolbelt/blob/main/docs/plugins.md)
+defines the host package, SDK and lifecycle contract.
 
 ## Build and publish packages
 
