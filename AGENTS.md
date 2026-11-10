@@ -1,34 +1,35 @@
 # toolbelt-ps — notes for coding agents
 
-Toolbelt Processes: a [Toolbelt](https://github.com/tkarakai/toolbelt) plugin (and `tb ps`
-command line) that reimplements [running](https://github.com/tkarakai/running). macOS only.
-See `README.md`.
+Read [README.md](README.md) and [docs/architecture.md](docs/architecture.md). This repository
+owns the Processes plugin, process engine and `running` TUI. Use the public SDK dependency;
+do not import host source or depend on a sibling checkout.
 
-## Workflow (required)
+## Workflow
 
-### Architecture v2 work (feat/architecture2)
+- Never use the no-mistakes tool, plugin, skill or pipeline. Implement, review, validate
+  and perform Git/CI operations directly.
+- One agent per checkout. If unexpected edits appear, stop and ask before changing them.
+- Work on the assigned feature branch. Never commit directly to `main`; use a PR and let
+  CI pass. Main merges, stable publication and changes to installed user apps/data require
+  explicit user authorization. Do not enable auto-merge unasked.
+- Add user-visible changes to `## Unreleased` in `CHANGELOG.md`. Do not bump versions in
+  feature PRs; use a release PR.
+- Preserve source/asset notices and [attribution](docs/running-provenance-original.md).
+- Pin workflow actions to full SHAs and keep permissions minimal. Allowed actions are
+  GitHub-owned actions, `oven-sh/setup-bun` and `zizmorcore/zizmor-action`.
 
-- Read [docs/architecture2.md](docs/architecture2.md) and its linked Toolbelt source-of-truth
-  specification before v2 work. This branch initially contains planning documentation only;
-  implementation requires a separate user assignment.
-- Keep all v2 work on `feat/architecture2`. Do not merge to `main`, enable auto-merge, publish
-  stable releases, or replace the user's working apps/data without a later explicit decision.
-  Committing and pushing this long-lived branch is authorized.
-- Never use the no-mistakes tool, plugin, skill, or pipeline. Work directly.
+## Implementation and validation
 
-- **Never commit to `main` directly.** Branch (`feat/…`, `fix/…`), open a pull request, let CI
-  pass, squash-merge. The PR title becomes the commit title on `main`. The `main` ruleset
-  enforces this (`.github/settings/`).
-- **One agent per checkout.** If `git status` shows changes you didn't make, stop and ask —
-  another session may be working here.
-- Add user-visible changes to `## Unreleased` in `CHANGELOG.md` in the same PR.
-- Don't bump the version in feature PRs; that happens in a release PR.
-- Workflow files: pin actions to full commit SHAs, keep `permissions` minimal. Only
-  GitHub-owned actions, `oven-sh/setup-bun` and `zizmorcore/zizmor-action` are allowed.
-- Never kill, restart or type into the user's own processes or terminals while testing —
-  start your own test processes.
-
-## Bun
-
-- Use `bun <file>`, `bun test`, `bun install`, `bun run <script>`, `bunx <pkg>` — not node,
-  jest/vitest, npm/yarn/pnpm or npx.
+- Use Bun commands: `bun install`, `bun run`, `bun test`, `bunx`; not npm/yarn/pnpm, node
+  or alternate test runners.
+- Preserve plugin/screen ids, the `running` executable and shell-hook behavior.
+- Keep behavior tests here. Toolbelt tests generic package/runtime contracts.
+- Run `bun run typecheck`, `bun test`, `bun run package`,
+  `bun scripts/verify-package.ts`, `bun scripts/verify-v1-import.ts` and relevant terminal
+  archive checks. Use Toolbelt Plugin Tester for renderer/native-surface work.
+- Installer tests must set `TOOLBELT_PS_HOME` or use temporary process homes. Never alter
+  actual user dotfiles while testing.
+- Never kill, restart, focus or type into the user's processes/terminals. Use disposable
+  processes for actions; observing the real list is read-only.
+- Keep SDK/package/manifest changes consistent. Release archives must run after extraction
+  without source checkouts or ambient dependency directories.

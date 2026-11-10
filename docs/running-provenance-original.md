@@ -5,8 +5,8 @@ The complete engine and TUI in `src/running` originated in tkarakai/running comm
 Toolbelt's maintained patches were extracted from tkarakai/toolbelt commit
 `229bd64b20599f621589e03e17d36ee72c604ff5`, including GUI-hosted agent detection,
 noninteractive shell jobs, agent environment differences, CMUX workspace/surface
-metadata and navigation. Original README and CHANGELOG remain alongside the code.
+metadata and navigation. The engine changelog remains alongside the code.
 The original repository supplied no LICENSE file; no new license grant is implied.
 
-This is now owned implementation of toolbelt-ps. There is no source refresh procedure
-or build/runtime dependency on a legacy Running checkout.
+The engine and TUI are maintained in this repository. The attribution above is included
+in the package NOTICE.
