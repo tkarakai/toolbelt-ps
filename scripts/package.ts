@@ -5,7 +5,7 @@ await $`bun scripts/build.ts`;
 const manifest=JSON.parse(readFileSync('dist/package/toolbelt.json','utf8'));
 mkdirSync('artifacts',{recursive:true});
 const name=`toolbelt-ps-${manifest.version}-darwin-arm64.tar.gz`;
-await $`tar -czf ${'artifacts/'+name} -C dist/package .`;
+await $`tar --format ustar -czf ${'artifacts/'+name} -C dist/package .`.env({...process.env,COPYFILE_DISABLE:'1'});
 const sha256=createHash('sha256').update(readFileSync('artifacts/'+name)).digest('hex');
 const commit=(await $`git rev-parse HEAD`.text()).trim();
 writeFileSync('artifacts/toolbelt-release.json',JSON.stringify({formatVersion:1,id:manifest.id,version:manifest.version,repo:manifest.repo,commit,packages:[{target:'darwin-arm64',asset:name,sha256,size:readFileSync('artifacts/'+name).byteLength}]},null,2)+'\n');
