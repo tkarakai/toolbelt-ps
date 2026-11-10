@@ -8,6 +8,6 @@ const name=`toolbelt-ps-${manifest.version}-darwin-arm64.tar.gz`;
 await $`tar -czf ${'artifacts/'+name} -C dist/package .`;
 const sha256=createHash('sha256').update(readFileSync('artifacts/'+name)).digest('hex');
 const commit=(await $`git rev-parse HEAD`.text()).trim();
-writeFileSync('artifacts/release.json',JSON.stringify({formatVersion:1,id:manifest.id,version:manifest.version,repo:manifest.repo,commit,assets:[{platform:'darwin-arm64',name,sha256}]},null,2)+'\n');
+writeFileSync('artifacts/toolbelt-release.json',JSON.stringify({formatVersion:1,id:manifest.id,version:manifest.version,repo:manifest.repo,commit,packages:[{target:'darwin-arm64',asset:name,sha256,size:readFileSync('artifacts/'+name).byteLength}]},null,2)+'\n');
 writeFileSync(`artifacts/${name}.sha256`,`${sha256}  ${name}\n`);
 console.log(`${name} ${sha256}`);

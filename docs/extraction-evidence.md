@@ -20,7 +20,7 @@ Running defaults and executable/shell hook names are unchanged.
 Validation on macOS arm64, Bun 1.4.2:
 
 - `bun run typecheck`: pass.
-- `bun test`: 47 pass, 0 fail, 190 assertions. Installation and login-shell probes use only
+- `bun test`: 66 pass, 0 fail, 379 assertions. Installation and login-shell probes use only
   disposable temp homes. A new launcher test promotes package versions and disables one.
 - `bun run package` then `bun scripts/verify-package.ts`: pass. Archive extracted outside
   checkout, no NODE_PATH or node_modules environment, minimal environment and temp HOME;
@@ -31,9 +31,8 @@ Validation on macOS arm64, Bun 1.4.2:
 The clean package probe only observes the machine's process list. It sends no mutating
 process/terminal actions. Real user jobs and dotfiles are never modified by these tests.
 
-Remaining integration gates: immutable public SDK artifact pin; host installer/transaction
-integration; real renderer visual/keyboard tester acceptance; explicit copied-v1-data
-import rehearsal. These are not claimed complete by the headless checks above.
+Remaining integration gates: host installer/transaction integration and real renderer
+visual/keyboard tester acceptance. These are not claimed complete by the headless checks above.
 
 The three original engine test suites were recovered from the pinned Running provenance
 commit into `test/engine`: 18 passing tests (origin, fingerprint, serve). They are now
