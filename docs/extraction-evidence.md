@@ -20,7 +20,7 @@ Running defaults and executable/shell hook names are unchanged.
 Validation on macOS arm64, Bun 1.4.2:
 
 - `bun run typecheck`: pass.
-- `bun test`: 66 pass, 0 fail, 379 assertions. Installation and login-shell probes use only
+- `bun test`: 68 pass, 0 fail, 384 assertions. Installation and login-shell probes use only
   disposable temp homes. A new launcher test promotes package versions and disables one.
 - `bun run package` then `bun scripts/verify-package.ts`: pass. Archive extracted outside
   checkout, no NODE_PATH or node_modules environment, minimal environment and temp HOME;
@@ -37,7 +37,7 @@ visual/keyboard tester acceptance. These are not claimed complete by the headles
 The three original engine test suites were recovered from the pinned Running provenance
 commit into `test/engine`: 18 passing tests (origin, fingerprint, serve). They are now
 owned tests, not a build/runtime dependency on that checkout. Full current count is
-66 tests / 379 assertions across eight suites, including an explicit copied-data import.
+68 tests / 384 assertions across nine suites, including an explicit copied-data import.
 The DEV import helper requires a temporary target profile, preserves copied preferences,
 kept entries and settings, refuses an existing target, and never discovers live v1 data.
 
@@ -50,3 +50,9 @@ Visual/keyboard acceptance and host crash/transaction/descendant integration rem
 explicit gates, not satisfied by these headless extraction tests. No real terminal actions
 were exercised. A schema-1 declaration means unchanged-schema upgrades are an explicit
 no-op; no speculative migration of actual v1 directories occurs.
+
+Two Claude/Codex conversation-parser tests formerly mixed into the host renderer suite
+were recovered unchanged into test/processes-conversation.test.ts. Published runtime
+archive architecture2-309ac87 is byte-identical in runtime source to this test-only follow-up.
+Real public GitHub installer/PluginHost integration passed all four surfaces, disable/enable,
+removal with data retention and survival of an independent disposable job.
