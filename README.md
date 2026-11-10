@@ -36,3 +36,8 @@ wrapper reports a clear error. The shell hook and executable names remain unchan
 Architecture work stays on `feat/architecture2`; no stable release or installed app change
 is performed by development scripts. Acceptance evidence lives in
 [docs/extraction-evidence.md](docs/extraction-evidence.md).
+
+Native terminal navigation declares `handoffActions: ["focus", "focus-kept"]` and requires
+`native.handoff`. This lets the generic host dismiss its popover before delivering those
+actions; the plugin remains responsible for the actual navigation. SDK dependency is the
+immutable public `sdk-v0.2.0-dev.4` package.

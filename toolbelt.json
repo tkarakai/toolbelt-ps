@@ -49,7 +49,8 @@
       "ui.terminal",
       "ui.conversation",
       "assets",
-      "lifecycle"
+      "lifecycle",
+      "native.handoff"
     ],
     "optional": []
   },
@@ -73,5 +74,9 @@
     "agent-pi": "assets/agents/pi.svg",
     "agent-qwen": "assets/agents/qwen.svg",
     "agent-vibe": "assets/agents/vibe.svg"
-  }
+  },
+  "handoffActions": [
+    "focus",
+    "focus-kept"
+  ]
 }
