@@ -20,7 +20,7 @@ Running defaults and executable/shell hook names are unchanged.
 Validation on macOS arm64, Bun 1.4.2:
 
 - `bun run typecheck`: pass.
-- `bun test`: 68 pass, 0 fail, 384 assertions. Installation and login-shell probes use only
+- `bun test`: 69 pass, 0 fail. Installation and login-shell probes use only
   disposable temp homes. A new launcher test promotes package versions and disables one.
 - `bun run package` then `bun scripts/verify-package.ts`: pass. Archive extracted outside
   checkout, no NODE_PATH or node_modules environment, minimal environment and temp HOME;
@@ -37,7 +37,7 @@ visual/keyboard tester acceptance. These are not claimed complete by the headles
 The three original engine test suites were recovered from the pinned Running provenance
 commit into `test/engine`: 18 passing tests (origin, fingerprint, serve). They are now
 owned tests, not a build/runtime dependency on that checkout. Full current count is
-68 tests / 384 assertions across nine suites, including an explicit copied-data import.
+69 tests across nine suites (assertion count varies with observed process rows), including an explicit copied-data import.
 The DEV import helper requires a temporary target profile, preserves copied preferences,
 kept entries and settings, refuses an existing target, and never discovers live v1 data.
 
@@ -61,3 +61,13 @@ The manifest declares `cli.cleanupScreen: settings`. Plugin-manager cleanup offe
 navigate to this screen while the plugin is still installed, so its existing explicit
 Remove confirmation and backup/undo checks remain in control. A host must not dispatch
 `tui-remove` directly, which would bypass the renderer's confirmation.
+
+Additional owned helper lease check: the installed stable resolver records the active
+Bun TUI child PID/packageRoot in `plugins/leases/processes`. It holds a provisional parent
+lease while spawning, transfers to the child PID and clears leases after exit. A killed
+resolver leaves a valid child lease until that child is absent. Tests verify lease lifetime
+against a disposable child, allowing host code removal without deleting running payloads.
+
+`bun scripts/verify-v1-import.ts` now rehearses the copied baseline data format against the
+actual standalone package: kept command/name/note/environment/secret flags and preferences
+survive explicit DEV import. It opens the edit dialog but never saves or starts the fixture.

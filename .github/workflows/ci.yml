@@ -94,6 +94,7 @@ jobs:
       - run: bun test
       - run: bun run package
       - run: bun scripts/verify-package.ts
+      - run: bun scripts/verify-v1-import.ts
       - run: bun run terminal-archives
 
   ci:

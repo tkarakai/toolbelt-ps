@@ -203,3 +203,16 @@ describe("active package launcher", () => {
   expect(await new Response(proc.stderr).text()).toContain("disabled or removed");
  });
 });
+
+test("active CLI holds an owned package lease until its child exits", async () => {
+ const {readdirSync}=await import('node:fs');const config=tempHome(),packageRoot=join(config,'plugins/packages/leased');
+ mkdirSync(join(packageRoot,'payload/bin'),{recursive:true});
+ writeFileSync(join(packageRoot,'payload/bin/running'),'console.log("ready");setTimeout(()=>{},200);');
+ writeFileSync(join(config,'plugins/registry.json'),JSON.stringify({formatVersion:1,plugins:{processes:{enabled:true,packageRoot}}}));
+ const wrapper=join(config,'running');writeFileSync(wrapper,wrapperScript(bun,'unused',config));
+ const proc=Bun.spawn(['/bin/sh',wrapper],{stdout:'pipe',stderr:'pipe'});
+ const reader=proc.stdout.getReader();expect(new TextDecoder().decode((await reader.read()).value)).toContain('ready');reader.releaseLock();
+ const leases=join(config,'plugins/leases/processes');const active=readdirSync(leases).map(name=>JSON.parse(readFileSync(join(leases,name),'utf8')));
+ expect(active).toHaveLength(1);expect(active[0].packageRoot).toBe(packageRoot);expect(()=>process.kill(active[0].pid,0)).not.toThrow();
+ expect(await proc.exited).toBe(0);expect(readdirSync(leases)).toEqual([]);
+});

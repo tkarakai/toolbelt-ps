@@ -127,7 +127,7 @@ const unavailable = (): Node => ({
 	type: "empty",
 	icon: "plug-zap",
 	title: "running-core isn't available",
-	description: `${core.error}. Rebuild the plugins (bun run plugins), or set RUNNING_CORE_SCRIPT to a running checkout's src/serve.ts.`,
+	description: `${core.error}. Reinstall the Processes package, or open a complete built archive in Toolbelt Plugin Tester.`,
 });
 
 /** A kept command typed in by hand (running-core keeps processes; restoring an entry at the

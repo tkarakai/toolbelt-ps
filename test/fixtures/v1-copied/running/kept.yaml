@@ -1,0 +1,9 @@
+processes:
+  - name: Copied v1 fixture
+    command: echo toolbelt-dev-fixture
+    cwd: /tmp
+    env:
+      DEMO: preserved
+      FAKE_TOKEN: fixture-only
+    note: Preserved note
+    kept: "2026-11-10T00:00:00.000Z"
