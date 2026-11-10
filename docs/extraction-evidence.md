@@ -56,3 +56,8 @@ were recovered unchanged into test/processes-conversation.test.ts. Published run
 archive architecture2-309ac87 is byte-identical in runtime source to this test-only follow-up.
 Real public GitHub installer/PluginHost integration passed all four surfaces, disable/enable,
 removal with data retention and survival of an independent disposable job.
+
+The manifest declares `cli.cleanupScreen: settings`. Plugin-manager cleanup offers must
+navigate to this screen while the plugin is still installed, so its existing explicit
+Remove confirmation and backup/undo checks remain in control. A host must not dispatch
+`tui-remove` directly, which would bypass the renderer's confirmation.

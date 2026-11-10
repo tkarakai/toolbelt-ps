@@ -31,7 +31,8 @@
   "repo": "tkarakai/toolbelt-ps",
   "cli": {
     "command": "running",
-    "path": "payload/bin/running"
+    "path": "payload/bin/running",
+    "cleanupScreen": "settings"
   },
   "formatVersion": 1,
   "requires": {
