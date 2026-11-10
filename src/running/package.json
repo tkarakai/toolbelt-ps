@@ -1,0 +1,31 @@
+{
+  "name": "running",
+  "version": "0.8.0",
+  "description": "See what is running across all your terminals, keep what matters, start it again.",
+  "type": "module",
+  "private": true,
+  "scripts": {
+    "dev": "bun src/main.tsx",
+    "typecheck": "tsc --noEmit -p .",
+    "build": "bun scripts/build.ts",
+    "install-bin": "bun run build && rm -f ~/.local/bin/running && cp dist/running ~/.local/bin/running",
+    "release": "bun scripts/release.ts",
+    "build:standalone": "bun scripts/build.ts --standalone",
+    "build:app": "bun scripts/build-app.ts",
+    "install-app": "bun scripts/build-app.ts --dev --install",
+    "test:app": "swift test --package-path mac"
+  },
+  "devDependencies": {
+    "@types/bun": "latest",
+    "@types/react": "^19.3.0",
+    "typescript": "^7"
+  },
+  "dependencies": {
+    "ink": "8",
+    "react": "19",
+    "yaml": "^2.9.1"
+  },
+  "bin": {
+    "running": "src/main.tsx"
+  }
+}

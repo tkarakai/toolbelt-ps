@@ -1,0 +1,76 @@
+{
+  "id": "processes",
+  "name": "Processes",
+  "icon": "activity",
+  "version": "0.0.1",
+  "description": "The processes you started in your terminals.",
+  "protocol": 1,
+  "entry": "index.ts",
+  "screens": [
+    {
+      "id": "processes",
+      "title": "Processes",
+      "icon": "list",
+      "default": true,
+      "shortcut": "p"
+    },
+    {
+      "id": "kept",
+      "title": "Kept",
+      "icon": "bookmark",
+      "shortcut": "k"
+    },
+    {
+      "id": "settings",
+      "title": "Settings",
+      "icon": "settings",
+      "shortcut": "s"
+    }
+  ],
+  "quickView": true,
+  "repo": "tkarakai/toolbelt-ps",
+  "cli": {
+    "command": "running",
+    "path": "payload/bin/running"
+  },
+  "formatVersion": 1,
+  "requires": {
+    "host": ">=0.1.0",
+    "bun": ">=1.3.0",
+    "platforms": [
+      "darwin-arm64"
+    ]
+  },
+  "capabilities": {
+    "required": [
+      "ui.core",
+      "ui.action-key",
+      "ui.terminal",
+      "ui.conversation",
+      "assets",
+      "lifecycle"
+    ],
+    "optional": []
+  },
+  "data": {
+    "schema": 1
+  },
+  "assets": {
+    "agent-amp": "assets/agents/amp.svg",
+    "agent-claude": "assets/agents/claude.svg",
+    "agent-cline": "assets/agents/cline.svg",
+    "agent-codex": "assets/agents/codex.svg",
+    "agent-copilot": "assets/agents/copilot.svg",
+    "agent-cursor": "assets/agents/cursor.svg",
+    "agent-gemini": "assets/agents/gemini.svg",
+    "agent-goose": "assets/agents/goose.svg",
+    "agent-grok": "assets/agents/grok.svg",
+    "agent-kilo": "assets/agents/kilo.svg",
+    "agent-kiro": "assets/agents/kiro.svg",
+    "agent-opencode": "assets/agents/opencode.svg",
+    "agent-openhands": "assets/agents/openhands.svg",
+    "agent-pi": "assets/agents/pi.svg",
+    "agent-qwen": "assets/agents/qwen.svg",
+    "agent-vibe": "assets/agents/vibe.svg"
+  }
+}

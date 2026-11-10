@@ -1,0 +1,13 @@
+import { createHash } from 'node:crypto';
+import {mkdirSync,readFileSync,writeFileSync} from 'node:fs';
+import {$} from 'bun';
+await $`bun scripts/build.ts`;
+const manifest=JSON.parse(readFileSync('dist/package/toolbelt.json','utf8'));
+mkdirSync('artifacts',{recursive:true});
+const name=`toolbelt-ps-${manifest.version}-darwin-arm64.tar.gz`;
+await $`tar -czf ${'artifacts/'+name} -C dist/package .`;
+const sha256=createHash('sha256').update(readFileSync('artifacts/'+name)).digest('hex');
+const commit=(await $`git rev-parse HEAD`.text()).trim();
+writeFileSync('artifacts/release.json',JSON.stringify({formatVersion:1,id:manifest.id,version:manifest.version,repo:manifest.repo,commit,assets:[{platform:'darwin-arm64',name,sha256}]},null,2)+'\n');
+writeFileSync(`artifacts/${name}.sha256`,`${sha256}  ${name}\n`);
+console.log(`${name} ${sha256}`);

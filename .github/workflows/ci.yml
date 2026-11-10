@@ -76,11 +76,31 @@ jobs:
           persona: regular
           advanced-security: false
 
+  plugin:
+    name: Plugin
+    runs-on: macos-15
+    timeout-minutes: 15
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2.2.0
+        with:
+          bun-version: "1.4.2"
+      - run: bun install --frozen-lockfile
+      - run: bun run typecheck
+      - run: bun test
+      - run: bun run package
+      - run: bun scripts/verify-package.ts
+      - run: bun run terminal-archives
+
   ci:
     # Single required status check for the branch ruleset.
     name: CI
     if: always()
-    needs: [secrets, workflows]
+    needs: [secrets, workflows, plugin]
     runs-on: ubuntu-latest
     timeout-minutes: 5
     permissions: {}
