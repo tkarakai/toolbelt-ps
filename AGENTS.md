@@ -6,6 +6,16 @@ See `README.md`.
 
 ## Workflow (required)
 
+### Architecture v2 work (feat/architecture2)
+
+- Read [docs/architecture2.md](docs/architecture2.md) and its linked Toolbelt source-of-truth
+  specification before v2 work. This branch initially contains planning documentation only;
+  implementation requires a separate user assignment.
+- Keep all v2 work on `feat/architecture2`. Do not merge to `main`, enable auto-merge, publish
+  stable releases, or replace the user's working apps/data without a later explicit decision.
+  Committing and pushing this long-lived branch is authorized.
+- Never use the no-mistakes tool, plugin, skill, or pipeline. Work directly.
+
 - **Never commit to `main` directly.** Branch (`feat/…`, `fix/…`), open a pull request, let CI
   pass, squash-merge. The PR title becomes the commit title on `main`. The `main` ruleset
   enforces this (`.github/settings/`).
