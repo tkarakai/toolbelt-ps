@@ -87,3 +87,7 @@ is not claimed from mere presence of its hidden DOM. The 414px inspector hides c
 
 Owned real tester PIDs 32436, 42031 and 43455 were closed through explicit Quit confirmation;
 checks found no remaining owned Bun/launcher processes. No real user job was modified.
+
+The remaining visible-inspector/tool-detail/narrow proof is now completed through the
+production renderer in Chrome; see [browser-acceptance.md](browser-acceptance.md). Exact
+signed-tester AX capture remains separately limited, without blocking renderer proof.
