@@ -2,7 +2,7 @@ name: CI
 
 on:
   push:
-    branches: [main]
+    branches: [main, feat/architecture2]
   pull_request:
     branches: [main]
   workflow_dispatch:
@@ -55,6 +55,7 @@ jobs:
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
+          fetch-depth: 0
           persist-credentials: false
       - name: Install actionlint (checksum verified)
         env:
@@ -76,11 +77,38 @@ jobs:
           persona: regular
           advanced-security: false
 
+  plugin:
+    name: Plugin
+    runs-on: macos-15
+    timeout-minutes: 15
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2.2.0
+        with:
+          bun-version: "1.4.4"
+      - run: bun install --frozen-lockfile
+      - name: Validate release request
+        if: github.event_name == 'pull_request'
+        run: |
+          git fetch origin main
+          bun run --bun toolbelt-release validate-request
+      - run: bun run typecheck
+      - run: bun test
+      - run: bun run package
+      - run: bun scripts/verify-package.ts
+      - run: bun scripts/verify-v1-import.ts
+      - run: bun run terminal-archives
+
   ci:
     # Single required status check for the branch ruleset.
     name: CI
     if: always()
-    needs: [secrets, workflows]
+    needs: [secrets, workflows, plugin]
     runs-on: ubuntu-latest
     timeout-minutes: 5
     permissions: {}

@@ -1,0 +1,133 @@
+name: Release
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: Already authorized release tag to retry
+        required: true
+        type: string
+permissions: {}
+concurrency:
+  group: release-${{ github.event.inputs.tag || github.sha }}
+  cancel-in-progress: false
+jobs:
+  plan:
+    runs-on: macos-15
+    timeout-minutes: 10
+    permissions:
+      contents: read
+      pull-requests: read
+      actions: read
+    outputs:
+      release: ${{ steps.plan.outputs.release }}
+      source: ${{ steps.plan.outputs.source }}
+      tag: ${{ steps.plan.outputs.tag }}
+      product: ${{ steps.plan.outputs.product }}
+      reuse: ${{ steps.plan.outputs.reuse }}
+      artifact: ${{ steps.plan.outputs.artifact }}
+      artifact_run: ${{ steps.plan.outputs.artifact_run }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          persist-credentials: false
+      - uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6
+        with:
+          bun-version: '1.4.4'
+      - run: bun install --frozen-lockfile
+      - id: plan
+        run: bun run --bun toolbelt-release ci-plan
+        env:
+          GH_TOKEN: ${{ github.token }}
+  build:
+    needs: plan
+    if: needs.plan.outputs.release == 'true' && needs.plan.outputs.reuse != 'true'
+    runs-on: macos-15
+    timeout-minutes: 40
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          ref: ${{ needs.plan.outputs.source }}
+          persist-credentials: false
+      - uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6
+        with:
+          bun-version: '1.4.4'
+      - run: bun install --frozen-lockfile
+      - run: bun run --bun toolbelt-release ci-build
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: release-${{ needs.plan.outputs.tag }}
+          path: release-candidate/
+          if-no-files-found: error
+          retention-days: 90
+  native:
+    needs: [plan, build]
+    if: always() && needs.plan.outputs.release == 'true' && needs.plan.outputs.product == 'plugin' && (needs.build.result == 'success' || needs.plan.outputs.reuse == 'true')
+    strategy:
+      matrix:
+        runner: [macos-15]
+    runs-on: ${{ matrix.runner }}
+    timeout-minutes: 15
+    permissions:
+      contents: read
+      actions: read
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          ref: ${{ needs.plan.outputs.source }}
+          persist-credentials: false
+      - uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6
+        with:
+          bun-version: '1.4.4'
+      - run: bun install --frozen-lockfile
+      - if: needs.plan.outputs.reuse != 'true'
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
+        with:
+          name: release-${{ needs.plan.outputs.tag }}
+          path: release-candidate
+      - if: needs.plan.outputs.reuse == 'true'
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
+        with:
+          artifact-ids: ${{ needs.plan.outputs.artifact }}
+          path: release-candidate
+          merge-multiple: true
+          github-token: ${{ github.token }}
+          run-id: ${{ needs.plan.outputs.artifact_run }}
+      - run: bun run --bun toolbelt-release verify-target
+  publish:
+    needs: [plan, build, native]
+    if: always() && needs.plan.outputs.release == 'true' && (needs.build.result == 'success' || needs.plan.outputs.reuse == 'true') && (needs.native.result == 'success' || needs.plan.outputs.product != 'plugin')
+    runs-on: macos-15
+    timeout-minutes: 20
+    permissions:
+      contents: write
+      pull-requests: read
+      actions: read
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          ref: ${{ needs.plan.outputs.source }}
+          persist-credentials: false
+      - uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6
+        with:
+          bun-version: '1.4.4'
+      - run: bun install --frozen-lockfile
+      - if: needs.plan.outputs.reuse != 'true'
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
+        with:
+          name: release-${{ needs.plan.outputs.tag }}
+          path: release-candidate
+      - if: needs.plan.outputs.reuse == 'true'
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
+        with:
+          artifact-ids: ${{ needs.plan.outputs.artifact }}
+          path: release-candidate
+          merge-multiple: true
+          github-token: ${{ github.token }}
+          run-id: ${{ needs.plan.outputs.artifact_run }}
+      - run: bun run --bun toolbelt-release ci-publish
+        env:
+          GH_TOKEN: ${{ github.token }}
