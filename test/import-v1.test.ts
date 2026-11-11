@@ -10,6 +10,6 @@ test('explicit copied v1 import preserves preferences and engine data and refuse
  writeFileSync(join(snapshot,'running/kept.yaml'),'commands: []\n');writeFileSync(join(snapshot,'running/settings.json'),'{"sort":{"key":"memory","desc":false}}');
  const dest=importCopiedV1(snapshot,profile);expect(readFileSync(join(dest,'prefs.json'),'utf8')).toBe(prefs);expect(readFileSync(join(dest,'running/kept.yaml'),'utf8')).toBe('commands: []\n');
  expect(()=>importCopiedV1(snapshot,profile)).toThrow('existing');
- expect(()=>importCopiedV1(snapshot,process.cwd())).toThrow('temporary');
+ expect(()=>importCopiedV1(snapshot,tmpdir())).toThrow('temporary');
  }finally{rmSync(root,{recursive:true,force:true});}
 });
