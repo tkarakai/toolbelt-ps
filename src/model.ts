@@ -254,6 +254,7 @@ export function build(snap: Snapshot, o: Options): Built {
     // rows in running-core, so add those rows once, never their expanded members.
     const memorySummary = (jobs: ProcRow[]) => ({
         label: "Memory total (RSS)",
+        column: "mem",
         value: `Σ ${mem(jobs.reduce((total, j) => total + j.rssKb, 0))}`,
         description: "Combined resident memory of the matching commands in this group, including their child processes. Shared memory may be counted by more than one process. Collapsing the group does not change this total.",
     });

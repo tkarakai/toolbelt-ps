@@ -272,3 +272,8 @@ test("a folder ranks by its largest nested job and CPU grouping still uses sums"
     const apps = [job({pid:1,where:"Many",cpu:3}),job({pid:2,where:"Many",cpu:3}),job({pid:3,where:"Single",cpu:5})];
     expect(build(snap(apps),{...opts,sort:"cpu",desc:true}).rows.map(r=>r.id)).toEqual(["1","2","3"]);
 });
+
+test("section and folder memory totals bind to the process memory column", () => {
+ const rows = build(snap([job({pid:1,rssKb:1024}),job({pid:2,rssKb:2048})]),opts).rows;
+ for (const row of rows) for (const level of [0,1]) expect(groupSummary(row,level)).toMatchObject({column:"mem",label:"Memory total (RSS)"});
+});
