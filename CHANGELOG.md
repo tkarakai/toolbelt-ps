@@ -2,6 +2,7 @@
 
 ## Unreleased
 
+## 0.1.1 — 2026-11-11
 - Align section and folder memory totals with the Memory column in the Processes table. Requires Toolbelt 0.2.2 or newer.
 
 ## 0.1.0 — 2026-11-11
