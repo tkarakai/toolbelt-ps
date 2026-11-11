@@ -1,3 +1,4 @@
+import { withScope, scopeValue } from "./scope";
 import { asset } from "@toolbelt/sdk";
 // Processes: a Toolbelt plugin that drives running-core (src/serve.ts in
 // github.com/tkarakai/running) and draws its processes, kept commands and settings. It has
@@ -234,15 +235,12 @@ function processesScreen(): Node {
 	const o: Options = { query, showAll, sort: sortKey(), desc: sortDesc(), history, filters: prefs.filters, waiting: waitingCheck() };
 	last = snap ? build(snap, o) : null;
 	const filtering = FILTERS.some((f) => prefs.filters[f.id]?.length);
-	return {
+	return withScope({
 		type: "page",
 		search: { placeholder: "Filter by command, folder, port, pid, agent…" },
 		filters: filtersFor(o),
-		summary: last ? `${last.shown} of ${last.total - last.hiddenApps} processes${last.hiddenApps ? ` · ${last.hiddenApps} apps hidden` : ""}` : "Loading…",
+		summary: last ? `${last.shown} of ${last.total - last.hiddenApps} processes${last.hiddenApps ? " · app & system services hidden" : ""}` : "Loading…",
 		highlight: last?.search.highlight(),
-		actions: [
-			{ id: "toggle-apps", label: "Show apps", checked: showAll },
-		],
 		dialog: currentDialog("processes"),
 		children: [
 			{
@@ -261,12 +259,12 @@ function processesScreen(): Node {
 				actions: PROCESS_ACTIONS,
 				empty: {
 					title: !snap ? "Loading…" : query || filtering ? "No process matches" : "Nothing running",
-					description: filtering ? "Nothing passes the filters — uncheck some, or pick “Show all” in a filter's menu." : snap && !query ? (last?.hiddenApps ? "Apps and system servers are hidden — Show apps lists them." : "Processes you start in your terminals show up here.") : undefined,
+					description: filtering ? "Nothing passes the filters — uncheck some, or pick “Show all” in a filter's menu." : snap && !query ? (last?.hiddenApps ? "App and system services are hidden — choose All services to include them." : "Processes you start in your terminals show up here.") : undefined,
 					icon: "terminal",
 				},
 			},
 		],
-	};
+	}, showAll);
 }
 
 /**
@@ -472,6 +470,13 @@ const ctx = definePlugin({
 				c.copy(d.source === "@transcript" ? (d.messages ?? []).map((m) => (m.role === "tool" ? `[${m.tool?.name}] ${m.text}` : `${m.author}:\n${m.text}`)).join("\n\n") : (d.data?.lines ?? []).map(stripAnsi).join("\n"));
 				return c.toast("Output copied", "success");
 			}
+			if (event === "field" && payload?.form === "process-scope") {
+				const selected = scopeValue(payload);
+				if (selected === undefined) return;
+				showAll = prefs.showAll = selected;
+				savePrefs();
+				return c.invalidate();
+			}
 			if (event === "field" && payload?.form === "keep" && dialog?.kind === "keep") {
 				const f = String(payload.field);
 				if (f === "environment" && Array.isArray(payload.value)) {
@@ -532,10 +537,6 @@ const ctx = definePlugin({
 					dialog = { kind: "keep", draft: { title: "Add a kept command", name: "", command: "", cwd: "~", note: "", env: [] } };
 					dialogScreen = "kept";
 					return c.invalidate();
-				case "toggle-apps":
-					showAll = prefs.showAll = !showAll;
-					savePrefs();
-					break;
 				case "sort": {
 					const key = COLUMN_SORT[String(payload?.key)];
 					if (key) await core.call("setSort", { key, desc: !!payload?.desc });

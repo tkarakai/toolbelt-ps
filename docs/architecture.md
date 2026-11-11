@@ -116,3 +116,9 @@ Follow the [release procedure](releases.md). Local builds create files only; mer
 Group memory summaries bind to the `mem` table column. The host aligns their values with
 process memory values and hides them when the Memory column is hidden. Toolbelt 0.2.2
 or newer is required for this layout. Group totals and sorting semantics are unchanged.
+
+The Processes toolbar uses Your Work / All services segments. Both preserve the existing
+`showAll` preference; the broader scope adds app/system listeners, not every OS process.
+`src/scope.ts` defines the control and validates explicit field values. This feature requires
+the host's segmented toolbar support. Before merging/publishing, pin its published SDK and
+set the minimum host range to the released version containing that support.
