@@ -21,7 +21,7 @@ privileges. Process isolation does not provide a security sandbox.
 
 ## Develop and verify
 
-Use Bun 1.4.2 and run from the repository root:
+Use Bun 1.4.4 and run from the repository root:
 
 ```sh
 bun install --frozen-lockfile
@@ -60,9 +60,7 @@ assets, a NOTICE and `payload/running-core.js` / `payload/bin/running`.
 `toolbelt-<version>-macos-arm64-standalone.tar.xz`. Both contain the `running` executable;
 the standalone archive embeds Bun.
 
-Follow the [release procedure](docs/releases.md) for release PRs, exact local checks,
-artifact verification, draft uploads, publication and recovery. Builds and CI do not
-publish releases. Published bytes are immutable; corrections require a new version.
+Follow the [release procedure](docs/releases.md). Local builds create files only; merging a validated release PR authorizes CI publication. Published bytes are immutable; corrections require a new version.
 
 To update the SDK dependency, pin the new public asset URL, verify that the lockfile
 resolves that URL, and rerun the complete package checks. To change data schema, implement

@@ -2,7 +2,7 @@ name: CI
 
 on:
   push:
-    branches: [main]
+    branches: [main, feat/architecture2]
   pull_request:
     branches: [main]
   workflow_dispatch:
@@ -55,6 +55,7 @@ jobs:
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
+          fetch-depth: 0
           persist-credentials: false
       - name: Install actionlint (checksum verified)
         env:
@@ -85,11 +86,17 @@ jobs:
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
+          fetch-depth: 0
           persist-credentials: false
       - uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2.2.0
         with:
-          bun-version: "1.4.2"
+          bun-version: "1.4.4"
       - run: bun install --frozen-lockfile
+      - name: Validate release request
+        if: github.event_name == 'pull_request'
+        run: |
+          git fetch origin main
+          bun run --bun toolbelt-release validate-request
       - run: bun run typecheck
       - run: bun test
       - run: bun run package

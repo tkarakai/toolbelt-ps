@@ -10,8 +10,7 @@ do not import host source or depend on a sibling checkout.
   and perform Git/CI operations directly.
 - One agent per checkout. If unexpected edits appear, stop and ask before changing them.
 - Work on the assigned feature branch. Never commit directly to `main`; use a PR and let
-  CI pass. Main merges, stable publication and changes to installed user apps/data require
-  explicit user authorization. Do not enable auto-merge unasked.
+  CI pass. The user owns main merges; merging a validated release PR authorizes its CI publication. Changes to installed apps/data need explicit authorization. Do not enable auto-merge unasked.
 - Add user-visible changes to `## Unreleased` in `CHANGELOG.md`. Do not bump versions in
   feature PRs; use a release PR.
 - Preserve source/asset notices and [attribution](docs/running-provenance-original.md).
@@ -34,6 +33,4 @@ do not import host source or depend on a sibling checkout.
 - Keep SDK/package/manifest changes consistent. Release archives must run after extraction
   without source checkouts or ambient dependency directories.
 
-Follow the [release procedure](docs/releases.md) for release PRs, validation, immutable assets,
-draft verification, publication and recovery. Local build/package scripts and CI do not
-publish releases.
+Follow the [release procedure](docs/releases.md). Local builds create files only; merging a validated release PR authorizes CI publication. Published bytes are immutable; corrections require a new version.
