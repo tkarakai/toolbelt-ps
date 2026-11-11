@@ -112,3 +112,7 @@ when using a new contract, and declare the required or optional capability accor
 ## Releases
 
 Follow the [release procedure](releases.md). Local builds create files only; merging a validated release PR authorizes CI publication. Published bytes are immutable; corrections require a new version.
+
+Group memory summaries bind to the `mem` table column. The host aligns their values with
+process memory values and hides them when the Memory column is hidden. Toolbelt 0.2.2
+or newer is required for this layout. Group totals and sorting semantics are unchanged.

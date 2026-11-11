@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Align section and folder memory totals with the Memory column in the Processes table. Requires Toolbelt 0.2.2 or newer.
+
 ## 0.1.0 — 2026-11-11
 - Non-interactive release PR preparation and verified CI publication through the shared SDK release tooling.
 
