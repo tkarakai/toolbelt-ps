@@ -5,7 +5,7 @@
     "": {
       "name": "toolbelt-ps",
       "dependencies": {
-        "@toolbelt/sdk": "https://github.com/tkarakai/toolbelt/releases/download/sdk-v0.2.0-dev.5/toolbelt-sdk-0.2.0-dev.5.tgz",
+        "@toolbelt/sdk": "https://github.com/tkarakai/toolbelt/releases/download/sdk-v0.3.1/toolbelt-sdk-0.3.1.tgz",
         "ink": "8",
         "react": "^19.3.1",
         "yaml": "^2.9.1",
@@ -20,7 +20,7 @@
   "packages": {
     "@alcalzone/ansi-tokenize": ["@alcalzone/ansi-tokenize@0.3.1", "", { "dependencies": { "ansi-styles": "^6.2.1", "is-fullwidth-code-point": "^5.0.0" } }, "sha512-cUD0PT0YX+rImRhfn7BfMRduP/tX/Zqt/N0dHlAyn2RlcJssCb5KsCJkhln61eh9vuJDkH8wKn3L8zJzzWXPFg=="],
 
-    "@toolbelt/sdk": ["@toolbelt/sdk@https://github.com/tkarakai/toolbelt/releases/download/sdk-v0.2.0-dev.5/toolbelt-sdk-0.2.0-dev.5.tgz", { "bin": { "toolbelt-release": "./release/cli.js" } }, "sha512-ACMi1RhrXZBooP3T7BPBQ2QHuz1/5u1K+KcSh7kQKfJnb2WML61P4MUosNj+4aScAghyxNeRCHe/ZRwRKuyCaA=="],
+    "@toolbelt/sdk": ["@toolbelt/sdk@https://github.com/tkarakai/toolbelt/releases/download/sdk-v0.3.1/toolbelt-sdk-0.3.1.tgz", { "bin": { "toolbelt-release": "./release/cli.js" } }, "sha512-n5TX0iYjbjUNjgP6yTjGu+gXO+bljCw9BMBfHVl4TMTPFr8tAdgQ1xA1iYBR/4XjB4oNXqVfTiMnFCPU/ohHGw=="],
 
     "@types/bun": ["@types/bun@1.4.4", "", { "dependencies": { "bun-types": "1.4.4" } }, "sha512-9wkRDXUXK124pEnAutE6n/l18j+i9GC5IAHK8TmX/2nlySETmky0OU6yL5U8pW1AoKh++AN9auDCr647BfurjQ=="],
 
