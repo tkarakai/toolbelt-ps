@@ -33,3 +33,7 @@ do not import host source or depend on a sibling checkout.
   processes for actions; observing the real list is read-only.
 - Keep SDK/package/manifest changes consistent. Release archives must run after extraction
   without source checkouts or ambient dependency directories.
+
+Follow the [release procedure](docs/releases.md) for release PRs, validation, immutable assets,
+draft verification, publication and recovery. Local build/package scripts and CI do not
+publish releases.

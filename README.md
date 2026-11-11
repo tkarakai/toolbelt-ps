@@ -60,13 +60,9 @@ assets, a NOTICE and `payload/running-core.js` / `payload/bin/running`.
 `toolbelt-<version>-macos-arm64-standalone.tar.xz`. Both contain the `running` executable;
 the standalone archive embeds Bun.
 
-For an authorized release, make version/changelog changes in a release PR. Keep the root
-package and manifest plugin versions consistent; the engine/TUI version is maintained in
-`src/running/package.json`. Build from the intended clean committed revision, run the
-checks above, then attach the archive, descriptor, checksums and terminal downloads to a
-draft GitHub release. Download and verify the draft assets before publishing. Publish
-prereleases with `--prerelease --latest=false`; stable publication requires the maintainer's
-explicit decision. Published bytes are immutable: corrections require a new version.
+Follow the [release procedure](docs/releases.md) for release PRs, exact local checks,
+artifact verification, draft uploads, publication and recovery. Builds and CI do not
+publish releases. Published bytes are immutable; corrections require a new version.
 
 To update the SDK dependency, pin the new public asset URL, verify that the lockfile
 resolves that URL, and rerun the complete package checks. To change data schema, implement

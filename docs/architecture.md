@@ -108,3 +108,9 @@ Use the real Plugin Tester for keyboard, theme, narrow-layout, dialog, asset and
 work. Dangerous actions target only disposable fixtures. Preserve stable ids, screen ids,
 command names and storage formats when maintaining behavior. Update the public SDK pin
 when using a new contract, and declare the required or optional capability accordingly.
+
+## Releases
+
+Follow the [release procedure](releases.md) for release PRs, validation, immutable assets,
+draft verification, publication and recovery. Local build/package scripts and CI do not
+publish releases.
