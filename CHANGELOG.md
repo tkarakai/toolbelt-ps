@@ -2,6 +2,7 @@
 
 ## Unreleased
 
+## 0.1.2 — 2026-11-12
 - Require Toolbelt 0.3.1 for explained toolbar controls and adopt source-pinned release retries with serialized publication.
 
 - Replace Show apps with Your Work / All services scope segments and explanations on hover or keyboard focus.
