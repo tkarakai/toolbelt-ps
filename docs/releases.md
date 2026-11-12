@@ -31,3 +31,8 @@ SDK development entry point and does not enter the plugin runtime bundle. Keep r
 ranges and capabilities accurate. Update the exact public SDK URL and lockfile together when
 upgrading tooling; publish compatible SDK/host prerequisites before consuming new functionality.
 Use isolated profiles, temporary homes and disposable resources for smoke tests.
+
+Retries accept `--pr <merged-release-PR>` or `--source <merge-SHA>` before tagging.
+The workflow forwards the optional source selector, retains its publisher from the
+trusted workflow commit before checking out a historical source, and serializes
+publication across repository tags. Existing tags and frozen candidate bytes stay immutable.

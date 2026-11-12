@@ -1,6 +1,6 @@
 import type { Node } from "@toolbelt/sdk";
 
-export function scopeControl(showAll: boolean) {
+export function scopeControl(showAll: boolean): Extract<Node, { type: "segmented" }> {
 	return {
 		type: "segmented" as const,
 		id: "process-scope",
@@ -13,8 +13,8 @@ export function scopeControl(showAll: boolean) {
 	};
 }
 
-/** Toolbar extension is structurally compatible with the pinned SDK's page node. */
-export function withScope(page: Extract<Node, { type: "page" }>, showAll: boolean) {
+/** Keep the scope beside search using the public page toolbar contract. */
+export function withScope(page: Extract<Node, { type: "page" }>, showAll: boolean): Extract<Node, { type: "page" }> {
 	return { ...page, controls: [scopeControl(showAll)] };
 }
 

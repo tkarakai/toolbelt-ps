@@ -120,5 +120,4 @@ or newer is required for this layout. Group totals and sorting semantics are unc
 The Processes toolbar uses Your Work / All services segments. Both preserve the existing
 `showAll` preference; the broader scope adds app/system listeners, not every OS process.
 `src/scope.ts` defines the control and validates explicit field values. This feature requires
-the host's segmented toolbar support. Before merging/publishing, pin its published SDK and
-set the minimum host range to the released version containing that support.
+Toolbelt 0.3.1 or newer and public SDK 0.3.2.
