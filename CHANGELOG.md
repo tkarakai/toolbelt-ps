@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+- Require Toolbelt 0.3.1 for explained toolbar controls and adopt source-pinned release retries with serialized publication.
+
+- Replace Show apps with Your Work / All services scope segments and explanations on hover or keyboard focus.
+
 ## 0.1.1 — 2026-11-11
 - Align section and folder memory totals with the Memory column in the Processes table. Requires Toolbelt 0.2.2 or newer.
 
