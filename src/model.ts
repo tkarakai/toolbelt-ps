@@ -230,6 +230,16 @@ export function searchable(snap: Snapshot, r: ProcRow): (string | number | undef
 		...r.members.flatMap(memberSearchable),
 	];
 }
+/**
+ * The Ports column as plain text. Toolbelt draws object cells inside a size container and
+ * shows their chips only when the cell is wide, so chips never appear in this narrow column.
+ */
+export const portsCell = (listen: Listen[]): string => {
+	const ports = [...new Set(listen.map((l) => `:${l.port}`))];
+	return ports.length > 2 ? `${ports.slice(0, 2).join(" ")} +${ports.length - 2}` : ports.join(" ");
+};
+const portsDetail = (section: string, listen: Listen[]) => (listen.length ? [{ section, label: "Ports", value: [...new Set(listen.map((l) => `${l.host}:${l.port}`))].join("  "), mono: true }] : []);
+
 const memberSearchable = (m: Member) => [m.pid, m.argvCommand, tildify(m.cwd), ...m.listen.map((l) => `:${l.port}`)];
 
 /** A job's dot (the popover's quick view uses it too). */
@@ -441,7 +451,7 @@ function jobRow(snap: Snapshot, r: ProcRow, o: Options, childJobs: ProcRow[] = [
 				...(bundle ? { icon: `app:${bundle}` } : { dot: dotFor(snap, r, act, svc, agent, o.now) }),
 				mono: !a && !bundle,
 			},
-			ports: { text: "", chips: r.listen.map((l) => `:${l.port}`) },
+			ports: portsCell(r.listen),
 			cpu: { text: `${r.cpu.toFixed(1)}%`, spark: spark(o, r.pid, "cpu"), mono: true, tone: cpuTone(r.cpu) },
 			mem: { text: mem(r.rssKb), spark: spark(o, r.pid, "mem"), mono: true, tone: memTone(r.rssKb) },
 			uptime: dur(r.etimeSec),
@@ -460,6 +470,7 @@ function jobRow(snap: Snapshot, r: ProcRow, o: Options, childJobs: ProcRow[] = [
 			...(branch ? [{ section: C, label: "Git branch", value: branch, mono: true }] : []),
 			...(kept ? [{ section: C, label: "Kept as", value: kept.name ?? kept.command }] : []),
 			...(url ? [{ section: N, label: "URL", value: url, mono: true }] : []),
+			...portsDetail(N, r.listen),
 			...(titles.length ? [{ section: N, label: "Page", value: titles.join(" · ") }] : []),
 			...(a
 				? [
@@ -502,7 +513,7 @@ function memberRow(snap: Snapshot, job: ProcRow, m: Member, o: Options): Row {
 				dot: dotFor(snap, m, act, svc, agent, o.now),
 				mono: true,
 			},
-			ports: { text: "", chips: m.listen.map((l) => `:${l.port}`) },
+			ports: portsCell(m.listen),
 			cpu: { text: `${m.cpu.toFixed(1)}%`, spark: spark(o, m.pid, "cpu"), mono: true, tone: cpuTone(m.cpu) },
 			mem: { text: mem(m.rssKb), spark: spark(o, m.pid, "mem"), mono: true, tone: memTone(m.rssKb) },
 			uptime: dur(m.etimeSec),
@@ -517,6 +528,7 @@ function memberRow(snap: Snapshot, job: ProcRow, m: Member, o: Options): Row {
 			{ section: "Command", label: "Command", value: m.argvCommand, mono: true },
 			{ section: "Command", label: "Directory", value: tildify(m.cwd), mono: true },
 			...(url ? [{ section: "Network", label: "URL", value: url, mono: true }] : []),
+			...portsDetail("Network", m.listen),
 			{ section: "Process", label: "Part of", value: displayName(job) },
 			{ section: "Process", label: "PID · parent", value: `${m.pid} · ${m.ppid}`, mono: true, copy: false },
 			...(stateLabel(m.stat) ? [{ section: "Process", label: "State", value: stateLabel(m.stat), tone: "warning" as const }] : []),

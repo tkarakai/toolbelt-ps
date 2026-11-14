@@ -1,6 +1,7 @@
 # Changelog
 
 ## Unreleased
+- Show listening ports in the Processes table again. Toolbelt hides cell chips in narrow columns, so ports are now plain monospace text (first two, then +N), and the row details list every port under Network.
 
 ## 0.1.2 — 2026-11-12
 - Require Toolbelt 0.3.1 for explained toolbar controls and adopt source-pinned release retries with serialized publication.
