@@ -249,7 +249,7 @@ function processesScreen(): Node {
 				// Narrow windows hide columns from the right; the process name always stays.
 				columns: [
 					{ key: "name", title: "Process", grow: true, minWidth: 260, sortable: true },
-					{ key: "ports", title: "Ports" },
+					{ key: "ports", title: "Ports", mono: true },
 					{ key: "cpu", title: "CPU", align: "right", mono: true, sortable: true, sortDesc: true },
 					{ key: "mem", title: "Memory", align: "right", mono: true, sortable: true, sortDesc: true },
 					{ key: "uptime", title: "Up", align: "right", mono: true, sortable: true },

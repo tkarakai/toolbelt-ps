@@ -81,6 +81,15 @@ describe("sorting and search", () => {
 		expect(hit[0].open).toBe(true);
 	});
 
+	test("ports are plain text cells (Toolbelt hides chips in narrow columns) and listed in details", () => {
+		const listen = [3000, 3001, 5173].map((port) => ({ pid: 1, port, host: "localhost" }));
+		const [one, none] = build(snap([job({ pid: 1, listen }), job({ pid: 2 })]), opts).rows;
+		expect(one.cells.ports).toBe(":3000 :3001 +1");
+		expect(none.cells.ports).toBe("");
+		expect(one.details?.find((d) => d.label === "Ports")).toMatchObject({ section: "Network", value: "localhost:3000  localhost:3001  localhost:5173" });
+		expect(none.details?.some((d) => d.label === "Ports")).toBe(false);
+	});
+
 	test("launchers that exited and guessed commands say so", () => {
 		const r = build(snap([job({ pid: 1, leaderGone: true, pidCount: 3, source: "history" })]), opts).rows[0];
 		const name = r.cells.name as { text: string; sub: string };
