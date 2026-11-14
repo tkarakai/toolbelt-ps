@@ -246,13 +246,14 @@ function processesScreen(): Node {
 			{
 				type: "table",
 				id: "processes",
-				// Narrow windows hide columns from the right; the process name always stays.
+				// Only Process follows the window; narrow windows hide columns from the right (in the
+				// person's order), and the process name always stays.
 				columns: [
-					{ key: "name", title: "Process", grow: true, minWidth: 260, sortable: true },
-					{ key: "ports", title: "Ports", mono: true },
-					{ key: "cpu", title: "CPU", align: "right", mono: true, sortable: true, sortDesc: true },
-					{ key: "mem", title: "Memory", align: "right", mono: true, sortable: true, sortDesc: true },
-					{ key: "uptime", title: "Up", align: "right", mono: true, sortable: true },
+					{ key: "name", title: "Process", grow: true, minWidth: 280, sortable: true },
+					{ key: "ports", title: "Ports", mono: true, width: 140 },
+					{ key: "cpu", title: "CPU", align: "right", mono: true, sortable: true, sortDesc: true, width: 128 },
+					{ key: "mem", title: "Memory", align: "right", mono: true, sortable: true, sortDesc: true, width: 128 },
+					{ key: "uptime", title: "Up", align: "right", mono: true, sortable: true, width: 80 },
 				],
 				sort: { key: SORT_COLUMN[sortKey()], desc: sortDesc() },
 				rows: last?.rows ?? [],

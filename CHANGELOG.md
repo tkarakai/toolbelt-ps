@@ -2,6 +2,7 @@
 
 ## Unreleased
 - Show listening ports in the Processes table again. Toolbelt hides cell chips in narrow columns, so ports are now plain monospace text (first two, then +N), and the row details list every port under Network.
+- Adopt Toolbelt column layout: Process follows the window width while Ports, CPU, Memory and Up keep fixed default widths. Columns can be resized (double-click a divider to reset) and reordered by dragging; Toolbelt remembers both. Requires Toolbelt 0.3.5 or newer and public SDK 0.3.3.
 
 ## 0.1.2 — 2026-11-12
 - Require Toolbelt 0.3.1 for explained toolbar controls and adopt source-pinned release retries with serialized publication.

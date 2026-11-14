@@ -121,3 +121,8 @@ The Processes toolbar uses Your Work / All services segments. Both preserve the 
 `showAll` preference; the broader scope adds app/system listeners, not every OS process.
 `src/scope.ts` defines the control and validates explicit field values. This feature requires
 Toolbelt 0.3.1 or newer and public SDK 0.3.2.
+
+The Processes table declares default column widths: Process grows with the window (minimum
+280px) and the other columns are fixed. When the window is too narrow, Toolbelt hides columns
+from the right in the person's displayed order. It also stores resized widths and dragged
+column order. This requires Toolbelt 0.3.5 or newer and public SDK 0.3.3.
