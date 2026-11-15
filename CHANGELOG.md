@@ -1,6 +1,8 @@
 # Changelog
 
 ## Unreleased
+
+## 0.1.4 — 2026-11-15
 - Add a Grouped / Flat switch beside the scope. Flat lists every job in one table with App, Folder and Branch columns that can be sorted, resized and reordered like the others. Each layout remembers its own columns, and the selected row stays selected when you switch.
 - Build with public SDK 0.3.4. No change in required Toolbelt version.
 
