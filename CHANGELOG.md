@@ -2,6 +2,7 @@
 
 ## Unreleased
 - Add a Grouped / Flat switch beside the scope. Flat lists every job in one table with App, Folder and Branch columns that can be sorted, resized and reordered like the others. Each layout remembers its own columns, and the selected row stays selected when you switch.
+- Build with public SDK 0.3.4. No change in required Toolbelt version.
 
 ## 0.1.3 — 2026-11-14
 - Show listening ports in the Processes table again. Toolbelt hides cell chips in narrow columns, so ports are now plain monospace text (first two, then +N), and the row details list every port under Network.
