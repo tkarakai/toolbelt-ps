@@ -154,3 +154,10 @@ In the flat layout they come at the end. The State filter calls them "Agent not 
 actions are Open T3 Code and, for Claude Code threads, Peek at the transcript. Jump on a live
 T3 Code agent brings T3 Code to the front. T3 Code has no link to a specific thread. An unreadable or changed
 database means no T3 information. Nothing is written.
+
+Toolbelt rejects any message with more than `LIMITS.nodes` (50,000) JSON values and reports
+the plugin as crashed. Each sparkline goes only in its CPU or Memory cell, never repeated in
+row stats, and carries the latest 16 samples. `fitRows` in `src/model.ts` keeps the table
+within what the rest of the page leaves. When it trims, it leaves out sparklines, then nested
+rows' details, then all details, and only after that drops rows from the end. The summary
+says whenever it trims.
