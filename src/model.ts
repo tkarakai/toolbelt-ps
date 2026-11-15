@@ -6,7 +6,7 @@ import { asset } from "@toolbelt/sdk";
 // test/processes-model.test.ts can check them.
 import { existsSync } from "node:fs";
 import { homedir } from "node:os";
-import type { DetailItem, Dot, Hue, Row, Tag, Target, Tone } from "@toolbelt/sdk";
+import type { Cell, DetailItem, Dot, Hue, Row, Tag, Target, Tone } from "@toolbelt/sdk";
 import { search, type Search } from "@toolbelt/sdk/search";
 import { agentById, detectAgent, type AgentKind } from "./agents";
 import type { Agent, Listen, Member, ProcRow, Snapshot, SortKey } from "./core";
@@ -75,6 +75,14 @@ function sectionIcon(where: string, rows: ProcRow[], isApp: boolean, all: ProcRo
 	return isApp ? "app-window" : "square-terminal";
 }
 
+/** How the Processes table is laid out: grouped under where-it-runs and folder headers, or one
+ *  flat list where app, folder and branch are ordinary columns. */
+export type View = "grouped" | "flat";
+/** Flat-view columns sorted by the plugin (running sorts the others). */
+export const FLAT_SORT = ["where", "dir", "branch"] as const;
+export type FlatSort = { key: (typeof FLAT_SORT)[number]; desc: boolean };
+export const isFlatSort = (key: unknown): key is FlatSort["key"] => (FLAT_SORT as readonly unknown[]).includes(key);
+
 /** Table column ↔ running's sort key. */
 export const COLUMN_SORT: Record<string, SortKey> = { name: "name", cpu: "cpu", mem: "memory", uptime: "started" };
 export const SORT_COLUMN: Record<SortKey, string> = { name: "name", cpu: "cpu", memory: "mem", started: "uptime" };
@@ -95,6 +103,10 @@ export type Options = {
 	filters?: Partial<Record<FilterId, string[]>>;
 	/** Whether an agent is waiting for the person (Claude Code's live status). */
 	waiting?: (pid: number) => boolean;
+	/** Grouped (default) or flat. */
+	view?: View;
+	/** Flat view sorted by app, folder or branch instead of running's sort. */
+	flatSort?: FlatSort;
 };
 
 // ── what a process is and how it's doing ─────────────────────────────────
@@ -273,6 +285,35 @@ export function build(snap: Snapshot, o: Options): Built {
 	const all = snap.rows;
 	const apps = all.filter((r) => r.kind === "app");
 	const visible = all.filter((r) => (o.showAll || r.kind !== "app") && s.test(searchable(snap, r)) && passes(facetsOf(snap, r, o), o.filters));
+	const summary = { search: s, shown: visible.length, total: all.length, hiddenApps: o.showAll ? 0 : apps.length };
+
+	// Flat: every job is a row of its own (jobs started from a job stay nested under it), and
+	// where it runs, its folder and branch are columns.
+	if (o.view === "flat") {
+		const pids = new Set(visible.map((j) => j.pid));
+		const childJobsByParent = new Map<number, ProcRow[]>();
+		for (const job of visible) if (job.parentRow !== undefined && pids.has(job.parentRow)) childJobsByParent.set(job.parentRow, [...(childJobsByParent.get(job.parentRow) ?? []), job]);
+		const flatSort = o.flatSort;
+		const order = (a: ProcRow, b: ProcRow) => {
+			if (flatSort) {
+				const x = flatText(snap, a, flatSort.key), y = flatText(snap, b, flatSort.key);
+				// Empty values (no branch) go last whichever way it's sorted.
+				if (!x !== !y) return x ? -1 : 1;
+				const c = (flatSort.desc ? -1 : 1) * x.localeCompare(y, undefined, { numeric: true });
+				if (c) return c;
+			}
+			return byKey(a, b);
+		};
+		const place = (j: ProcRow): Row => {
+			const childJobs = [...(childJobsByParent.get(j.pid) ?? [])].sort(order);
+			const members = sortTree(j.members, memberVal, cmp).map((m) => memberRow(snap, j, m, o));
+			const memberHit = !s.empty && j.members.some((m) => s.test(memberSearchable(m)));
+			const children = [...nestMembers(j, members), ...childJobs.map(place)];
+			return { ...jobRow(snap, j, o, childJobs), children: children.length ? children : undefined, open: childJobs.length > 0 || memberHit || undefined };
+		};
+		const roots = visible.filter((j) => j.parentRow === undefined || !pids.has(j.parentRow)).sort(order);
+		return { rows: roots.map(place), ...summary };
+	}
 
 	// Sections: by where, terminals before servers before apps, then by name (or the largest command for memory sorting).
 	const sections = new Map<string, ProcRow[]>();
@@ -325,7 +366,35 @@ export function build(snap: Snapshot, o: Options): Built {
 			for (const j of djs.sort(byKey)) rows.push({ ...place(j), group });
 		}
 	}
-	return { rows, search: s, shown: visible.length, total: all.length, hiddenApps: o.showAll ? 0 : apps.length };
+	return { rows, ...summary };
+}
+
+/** A job's app, folder or branch, as the flat view shows and sorts it. */
+function flatText(snap: Snapshot, r: ProcRow, key: FlatSort["key"]): string {
+	if (key === "where") return sectionLabel(r.where);
+	if (key === "dir") return tildify(r.cwd);
+	return (r.cwd && r.cwd !== "/" ? snap.branches[r.cwd] : undefined) ?? "";
+}
+
+/** A folder led by its project ("toolbelt/t3-…"), its location underneath ("~/worktrees"), so a
+ *  narrow column cuts the location, not the project. */
+function folderCell(dir: string): Cell {
+	const project = dir && dir !== "/" ? projectPart(dir) : undefined;
+	const at = project ? dir.lastIndexOf(`/${project}`) : -1;
+	if (!project || at < 0) return { text: dir || "—", mono: true };
+	return { text: dir.slice(at + 1), strong: project, sub: dir.slice(0, at) || "/", mono: true };
+}
+
+/** The flat view's App, Folder and Branch cells. */
+function placeCells(snap: Snapshot, r: ProcRow): Row["cells"] {
+	const dir = tildify(r.cwd);
+	const branch = flatText(snap, r, "branch");
+	const isApp = r.kind === "app";
+	return {
+		where: { text: sectionLabel(r.where), icon: sectionIcon(r.where.startsWith("tmux") ? "tmux" : r.where, [r], isApp, snap.rows), tone: isApp ? "muted" : undefined },
+		dir: folderCell(dir),
+		...(branch ? { branch: { text: branch, icon: "git-branch", mono: true } } : {}),
+	};
 }
 
 /** Siblings follow the sort; parents stay above their children. Flat, parent first. */
@@ -455,6 +524,7 @@ function jobRow(snap: Snapshot, r: ProcRow, o: Options, childJobs: ProcRow[] = [
 			cpu: { text: `${r.cpu.toFixed(1)}%`, spark: spark(o, r.pid, "cpu"), mono: true, tone: cpuTone(r.cpu) },
 			mem: { text: mem(r.rssKb), spark: spark(o, r.pid, "mem"), mono: true, tone: memTone(r.rssKb) },
 			uptime: dur(r.etimeSec),
+			...(o.view === "flat" ? placeCells(snap, r) : {}),
 		},
 		actions: ["focus", "output", ...(url || childJobs.some((c) => webUrl(snap, c)) ? ["open"] : []), ...(stateLabel(r.stat) ? ["why"] : []), kept ? "edit-kept" : "keep", "copy", "restart", "stop", "kill"],
 		targets: targetsFor(snap, r, childJobs),
@@ -517,6 +587,8 @@ function memberRow(snap: Snapshot, job: ProcRow, m: Member, o: Options): Row {
 			cpu: { text: `${m.cpu.toFixed(1)}%`, spark: spark(o, m.pid, "cpu"), mono: true, tone: cpuTone(m.cpu) },
 			mem: { text: mem(m.rssKb), spark: spark(o, m.pid, "mem"), mono: true, tone: memTone(m.rssKb) },
 			uptime: dur(m.etimeSec),
+			// Processes inside a job show a folder only when it isn't the job's.
+			...(o.view === "flat" && m.cwd && m.cwd !== job.cwd ? { dir: { text: tildify(m.cwd), mono: true } } : {}),
 		},
 		actions: ["output", ...(url ? ["open"] : []), ...(stateLabel(m.stat) ? ["why"] : []), "copy", "stop", "kill"],
 		stats: [

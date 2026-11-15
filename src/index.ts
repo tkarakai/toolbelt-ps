@@ -1,4 +1,4 @@
-import { withScope, scopeValue } from "./scope";
+import { withScope, scopeValue, viewValue } from "./scope";
 import { asset } from "@toolbelt/sdk";
 // Processes: a Toolbelt plugin that drives running-core (src/serve.ts in
 // github.com/tkarakai/running) and draws its processes, kept commands and settings. It has
@@ -11,14 +11,14 @@ import { asset } from "@toolbelt/sdk";
 // terminal UI on the PATH.
 import { existsSync, readFileSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
-import { dataDir, definePlugin, type Action, type Context, type Dialog, type Dot, type Field, type Message, type Node, type Row } from "@toolbelt/sdk";
+import { dataDir, definePlugin, type Action, type Column, type Context, type Dialog, type Dot, type Field, type Message, type Node, type Row } from "@toolbelt/sdk";
 import { readConversation } from "./conversation";
 import { Core, type Hello, type KeepDraft, type Peek, type Snapshot, type SortKey } from "./core";
 import { coreScript } from "./paths";
 import { readCmuxLocations } from "./cmux";
 import { Tui } from "./tui";
 import { claudeWaiting, AGENTS } from "./agents";
-import { agentOf, agentState, build, COLUMN_SORT, displayName, dur, facetCounts, FILTERS, locate, projectPart, SERVICE, SORT_COLUMN, sourceLabel, statusDot, stripAnsi, tildify, webUrl, type Built, type FilterId, type Options, type Service } from "./model";
+import { agentOf, agentState, build, COLUMN_SORT, displayName, dur, facetCounts, FILTERS, locate, projectPart, SERVICE, SORT_COLUMN, sourceLabel, statusDot, stripAnsi, tildify, webUrl, isFlatSort, type Built, type FilterId, type FlatSort, type Options, type Service, type View } from "./model";
 
 const core = new Core(coreScript(), {
 	onChanged: () => void refresh(),
@@ -43,7 +43,7 @@ function discoverTerminals() {
 let query = "";
 // The person's choices, kept in the plugin's data folder across restarts.
 const PREFS = join(dataDir(), "prefs.json");
-const prefs: { showAll: boolean; terminal: string; filters: Partial<Record<FilterId, string[]>> } = { showAll: false, terminal: "terminal", filters: {} };
+const prefs: { showAll: boolean; terminal: string; filters: Partial<Record<FilterId, string[]>>; view?: View; flatSort?: FlatSort } = { showAll: false, terminal: "terminal", filters: {} };
 try {
 	if (existsSync(PREFS)) Object.assign(prefs, JSON.parse(readFileSync(PREFS, "utf8")));
 } catch {}
@@ -232,7 +232,9 @@ const currentDialog = (screen: "processes" | "kept"): Dialog | undefined => {
 
 function processesScreen(): Node {
 	if (core.error) return unavailable();
-	const o: Options = { query, showAll, sort: sortKey(), desc: sortDesc(), history, filters: prefs.filters, waiting: waitingCheck() };
+	const view: View = prefs.view === "flat" ? "flat" : "grouped";
+	const flatSort = view === "flat" ? prefs.flatSort : undefined;
+	const o: Options = { query, showAll, sort: sortKey(), desc: sortDesc(), history, filters: prefs.filters, waiting: waitingCheck(), view, flatSort };
 	last = snap ? build(snap, o) : null;
 	const filtering = FILTERS.some((f) => prefs.filters[f.id]?.length);
 	return withScope({
@@ -245,17 +247,12 @@ function processesScreen(): Node {
 		children: [
 			{
 				type: "table",
-				id: "processes",
+				// Each layout keeps its own column widths and order; selection follows the row's pid.
+				id: view === "flat" ? "processes-flat" : "processes",
 				// Only Process follows the window; narrow windows hide columns from the right (in the
 				// person's order), and the process name always stays.
-				columns: [
-					{ key: "name", title: "Process", grow: true, minWidth: 280, sortable: true },
-					{ key: "ports", title: "Ports", mono: true, width: 140 },
-					{ key: "cpu", title: "CPU", align: "right", mono: true, sortable: true, sortDesc: true, width: 128 },
-					{ key: "mem", title: "Memory", align: "right", mono: true, sortable: true, sortDesc: true, width: 128 },
-					{ key: "uptime", title: "Up", align: "right", mono: true, sortable: true, width: 80 },
-				],
-				sort: { key: SORT_COLUMN[sortKey()], desc: sortDesc() },
+				columns: view === "flat" ? FLAT_COLUMNS : GROUPED_COLUMNS,
+				sort: flatSort ?? { key: SORT_COLUMN[sortKey()], desc: sortDesc() },
 				rows: last?.rows ?? [],
 				actions: PROCESS_ACTIONS,
 				empty: {
@@ -265,8 +262,29 @@ function processesScreen(): Node {
 				},
 			},
 		],
-	}, showAll);
+	}, showAll, view);
 }
+
+const GROUPED_COLUMNS: Column[] = [
+	{ key: "name", title: "Process", grow: true, minWidth: 280, sortable: true },
+	{ key: "ports", title: "Ports", mono: true, width: 140 },
+	{ key: "cpu", title: "CPU", align: "right", mono: true, sortable: true, sortDesc: true, width: 128 },
+	{ key: "mem", title: "Memory", align: "right", mono: true, sortable: true, sortDesc: true, width: 128 },
+	{ key: "uptime", title: "Up", align: "right", mono: true, sortable: true, width: 80 },
+];
+/** Flat: where it runs, its folder and branch become columns. Narrow windows drop (highest
+ *  priority first) Up, Ports, Branch, App, Memory, then CPU; Folder stays longest. Folder and
+ *  Branch give up width before anything drops. */
+const FLAT_COLUMNS: Column[] = [
+	{ key: "name", title: "Process", grow: true, minWidth: 220, sortable: true },
+	{ key: "where", title: "App", width: 120, sortable: true, priority: 6 },
+	{ key: "dir", title: "Folder", mono: true, width: 220, minWidth: 120, shrink: 1, sortable: true, priority: 3 },
+	{ key: "branch", title: "Branch", mono: true, width: 160, minWidth: 90, shrink: 1, sortable: true, priority: 7 },
+	{ key: "ports", title: "Ports", mono: true, width: 110, priority: 8 },
+	{ key: "cpu", title: "CPU", align: "right", mono: true, sortable: true, sortDesc: true, width: 128, priority: 4 },
+	{ key: "mem", title: "Memory", align: "right", mono: true, sortable: true, sortDesc: true, width: 128, priority: 5 },
+	{ key: "uptime", title: "Up", align: "right", mono: true, sortable: true, width: 80, priority: 9 },
+];
 
 /**
  * Row actions, in groups: get to it (its terminal, its output, its page) · understand it · keep
@@ -471,6 +489,13 @@ const ctx = definePlugin({
 				c.copy(d.source === "@transcript" ? (d.messages ?? []).map((m) => (m.role === "tool" ? `[${m.tool?.name}] ${m.text}` : `${m.author}:\n${m.text}`)).join("\n\n") : (d.data?.lines ?? []).map(stripAnsi).join("\n"));
 				return c.toast("Output copied", "success");
 			}
+			if (event === "field" && payload?.form === "process-view") {
+				const view = viewValue(payload);
+				if (view === undefined) return;
+				prefs.view = view;
+				savePrefs();
+				return c.invalidate();
+			}
 			if (event === "field" && payload?.form === "process-scope") {
 				const selected = scopeValue(payload);
 				if (selected === undefined) return;
@@ -539,8 +564,16 @@ const ctx = definePlugin({
 					dialogScreen = "kept";
 					return c.invalidate();
 				case "sort": {
+					// App, Folder and Branch (flat layout) are sorted here; the others by running.
+					if (isFlatSort(payload?.key)) {
+						prefs.flatSort = { key: payload.key, desc: !!payload?.desc };
+						savePrefs();
+						return c.invalidate();
+					}
 					const key = COLUMN_SORT[String(payload?.key)];
-					if (key) await core.call("setSort", { key, desc: !!payload?.desc });
+					if (!key) break;
+					if (prefs.flatSort) (delete prefs.flatSort, savePrefs());
+					await core.call("setSort", { key, desc: !!payload?.desc });
 					break;
 				}
 				case "focus":

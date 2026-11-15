@@ -286,3 +286,39 @@ test("section and folder memory totals bind to the process memory column", () =>
  const rows = build(snap([job({pid:1,rssKb:1024}),job({pid:2,rssKb:2048})]),opts).rows;
  for (const row of rows) for (const level of [0,1]) expect(groupSummary(row,level)).toMatchObject({column:"mem",label:"Memory total (RSS)"});
 });
+
+describe("flat layout", () => {
+	const flat = { ...opts, view: "flat" as const };
+	test("no group headers: app, folder and branch are cells; started jobs stay nested", () => {
+		const s = snap([job({ pid: 1, cwd: "/w/a" }), job({ pid: 2, parentRow: 1, cwd: "/w/a" }), job({ pid: 3, where: "detached", cwd: "/w/b" })], { branches: { "/w/a": "main" } });
+		const rows = build(s, flat).rows;
+		expect(rows.map((r) => r.id)).toEqual(["1", "3"]);
+		expect(rows.every((r) => r.group === undefined)).toBe(true);
+		expect(rows[0]!.children?.map((r) => r.id)).toEqual(["2"]);
+		const cells = rows[0]!.cells as Record<string, Cell>;
+		expect((cells.where as { text: string }).text).toBe("Orca");
+		expect(cells.dir).toMatchObject({ text: "a", strong: "a", sub: "/w" });
+		expect((cells.branch as { text: string }).text).toBe("main");
+		expect((rows[1]!.cells as Record<string, Cell>).where).toMatchObject({ text: "Detached" });
+		expect((rows[1]!.cells as Record<string, Cell>).branch).toBeUndefined();
+	});
+
+	test("sorting by folder or branch; rows without a branch go last either way", () => {
+		const s = snap([job({ pid: 1, cwd: "/w/c" }), job({ pid: 2, cwd: "/w/a" }), job({ pid: 3, cwd: "/w/b" })], { branches: { "/w/a": "zeta", "/w/b": "alpha" } });
+		expect(build(s, { ...flat, flatSort: { key: "dir", desc: false } }).rows.map((r) => r.id)).toEqual(["2", "3", "1"]);
+		expect(build(s, { ...flat, flatSort: { key: "branch", desc: false } }).rows.map((r) => r.id)).toEqual(["3", "2", "1"]);
+		expect(build(s, { ...flat, flatSort: { key: "branch", desc: true } }).rows.map((r) => r.id)).toEqual(["2", "3", "1"]);
+	});
+
+	test("processes inside a job show a folder only when it differs", () => {
+		const m = (pid: number, cwd: string) => ({ pid, ppid: 1, depth: 1, displayArgv: [], argvCommand: `m${pid}`, cwd, listen: [], tty: "", stat: "S", etimeSec: 1, rssKb: 1, cpu: 0, pidCount: 1 });
+		const rows = build(snap([job({ pid: 1, cwd: "/w/a", members: [m(10, "/w/a"), m(11, "/w/other")] })]), flat).rows;
+		const kids = rows[0]!.children!;
+		expect((kids.find((k) => k.id === "10")!.cells as Record<string, Cell>).dir).toBeUndefined();
+		expect((kids.find((k) => k.id === "11")!.cells as Record<string, Cell>).dir).toMatchObject({ text: "/w/other" });
+	});
+
+	test("grouped stays the default", () => {
+		expect(build(snap([job({ pid: 1 })]), opts).rows[0]!.group).toBeDefined();
+	});
+});
