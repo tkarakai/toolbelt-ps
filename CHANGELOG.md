@@ -1,6 +1,8 @@
 # Changelog
 
 ## Unreleased
+
+## 0.1.7 — 2026-11-15
 - Fix Processes stopping with “Invalid protocol message: Protocol complexity limit” once a long list had been open a while. Sparklines show the latest 16 samples and appear only in the CPU and Memory cells, not again in the row details, which roughly halves what a long list sends. If a list is still too big, Processes leaves out sparklines, then details of nested rows, then all details, and says so in the summary. As a last resort it lists fewer rows, never none.
 
 ## 0.1.6 — 2026-11-15
