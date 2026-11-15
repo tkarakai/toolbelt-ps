@@ -18,7 +18,7 @@ import { coreScript } from "./paths";
 import { readCmuxLocations } from "./cmux";
 import { Tui } from "./tui";
 import { claudeWaiting, AGENTS } from "./agents";
-import { agentOf, agentState, build, COLUMN_SORT, displayName, dur, facetCounts, FILTERS, locate, projectPart, SERVICE, SORT_COLUMN, sourceLabel, statusDot, stripAnsi, tildify, webUrl, isFlatSort, type Built, type FilterId, type FlatSort, type Options, type Service, type View } from "./model";
+import { agentOf, agentState, build, COLUMN_SORT, displayName, dur, facetCounts, FILTERS, locate, projectPart, SERVICE, SORT_COLUMN, sourceLabel, statusDot, stripAnsi, tildify, webUrl, isPluginSort, pluginSortFor, type Built, type FilterId, type PluginSort, type Options, type Service, type View } from "./model";
 
 const core = new Core(coreScript(), {
 	onChanged: () => void refresh(),
@@ -43,7 +43,7 @@ function discoverTerminals() {
 let query = "";
 // The person's choices, kept in the plugin's data folder across restarts.
 const PREFS = join(dataDir(), "prefs.json");
-const prefs: { showAll: boolean; terminal: string; filters: Partial<Record<FilterId, string[]>>; view?: View; flatSort?: FlatSort } = { showAll: false, terminal: "terminal", filters: {} };
+const prefs: { showAll: boolean; terminal: string; filters: Partial<Record<FilterId, string[]>>; view?: View; /** The plugin's own sort (App, Folder, Branch, Ports); kept under its original name. */ flatSort?: PluginSort } = { showAll: false, terminal: "terminal", filters: {} };
 try {
 	if (existsSync(PREFS)) Object.assign(prefs, JSON.parse(readFileSync(PREFS, "utf8")));
 } catch {}
@@ -233,8 +233,8 @@ const currentDialog = (screen: "processes" | "kept"): Dialog | undefined => {
 function processesScreen(): Node {
 	if (core.error) return unavailable();
 	const view: View = prefs.view === "flat" ? "flat" : "grouped";
-	const flatSort = view === "flat" ? prefs.flatSort : undefined;
-	const o: Options = { query, showAll, sort: sortKey(), desc: sortDesc(), history, filters: prefs.filters, waiting: waitingCheck(), view, flatSort };
+	const pluginSort = pluginSortFor(view, prefs.flatSort);
+	const o: Options = { query, showAll, sort: sortKey(), desc: sortDesc(), history, filters: prefs.filters, waiting: waitingCheck(), view, pluginSort };
 	last = snap ? build(snap, o) : null;
 	const filtering = FILTERS.some((f) => prefs.filters[f.id]?.length);
 	return withScope({
@@ -252,7 +252,7 @@ function processesScreen(): Node {
 				// Only Process follows the window; narrow windows hide columns from the right (in the
 				// person's order), and the process name always stays.
 				columns: view === "flat" ? FLAT_COLUMNS : GROUPED_COLUMNS,
-				sort: flatSort ?? { key: SORT_COLUMN[sortKey()], desc: sortDesc() },
+				sort: pluginSort ?? { key: SORT_COLUMN[sortKey()], desc: sortDesc() },
 				rows: last?.rows ?? [],
 				actions: PROCESS_ACTIONS,
 				empty: {
@@ -267,7 +267,7 @@ function processesScreen(): Node {
 
 const GROUPED_COLUMNS: Column[] = [
 	{ key: "name", title: "Process", grow: true, minWidth: 280, sortable: true },
-	{ key: "ports", title: "Ports", mono: true, width: 140 },
+	{ key: "ports", title: "Ports", mono: true, width: 140, sortable: true },
 	{ key: "cpu", title: "CPU", align: "right", mono: true, sortable: true, sortDesc: true, width: 128 },
 	{ key: "mem", title: "Memory", align: "right", mono: true, sortable: true, sortDesc: true, width: 128 },
 	{ key: "uptime", title: "Up", align: "right", mono: true, sortable: true, width: 80 },
@@ -280,7 +280,7 @@ const FLAT_COLUMNS: Column[] = [
 	{ key: "where", title: "App", width: 120, sortable: true, priority: 6 },
 	{ key: "dir", title: "Folder", mono: true, width: 220, minWidth: 120, shrink: 1, sortable: true, priority: 3 },
 	{ key: "branch", title: "Branch", mono: true, width: 160, minWidth: 90, shrink: 1, sortable: true, priority: 7 },
-	{ key: "ports", title: "Ports", mono: true, width: 110, priority: 8 },
+	{ key: "ports", title: "Ports", mono: true, width: 110, sortable: true, priority: 8 },
 	{ key: "cpu", title: "CPU", align: "right", mono: true, sortable: true, sortDesc: true, width: 128, priority: 4 },
 	{ key: "mem", title: "Memory", align: "right", mono: true, sortable: true, sortDesc: true, width: 128, priority: 5 },
 	{ key: "uptime", title: "Up", align: "right", mono: true, sortable: true, width: 80, priority: 9 },
@@ -564,8 +564,8 @@ const ctx = definePlugin({
 					dialogScreen = "kept";
 					return c.invalidate();
 				case "sort": {
-					// App, Folder and Branch (flat layout) are sorted here; the others by running.
-					if (isFlatSort(payload?.key)) {
+					// App, Folder, Branch (flat layout) and Ports are sorted here; the others by running.
+					if (isPluginSort(payload?.key)) {
 						prefs.flatSort = { key: payload.key, desc: !!payload?.desc };
 						savePrefs();
 						return c.invalidate();

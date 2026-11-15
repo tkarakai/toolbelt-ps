@@ -305,9 +305,9 @@ describe("flat layout", () => {
 
 	test("sorting by folder or branch; rows without a branch go last either way", () => {
 		const s = snap([job({ pid: 1, cwd: "/w/c" }), job({ pid: 2, cwd: "/w/a" }), job({ pid: 3, cwd: "/w/b" })], { branches: { "/w/a": "zeta", "/w/b": "alpha" } });
-		expect(build(s, { ...flat, flatSort: { key: "dir", desc: false } }).rows.map((r) => r.id)).toEqual(["2", "3", "1"]);
-		expect(build(s, { ...flat, flatSort: { key: "branch", desc: false } }).rows.map((r) => r.id)).toEqual(["3", "2", "1"]);
-		expect(build(s, { ...flat, flatSort: { key: "branch", desc: true } }).rows.map((r) => r.id)).toEqual(["2", "3", "1"]);
+		expect(build(s, { ...flat, pluginSort: { key: "dir", desc: false } }).rows.map((r) => r.id)).toEqual(["2", "3", "1"]);
+		expect(build(s, { ...flat, pluginSort: { key: "branch", desc: false } }).rows.map((r) => r.id)).toEqual(["3", "2", "1"]);
+		expect(build(s, { ...flat, pluginSort: { key: "branch", desc: true } }).rows.map((r) => r.id)).toEqual(["2", "3", "1"]);
 	});
 
 	test("processes inside a job show a folder only when it differs", () => {
@@ -320,5 +320,29 @@ describe("flat layout", () => {
 
 	test("grouped stays the default", () => {
 		expect(build(snap([job({ pid: 1 })]), opts).rows[0]!.group).toBeDefined();
+	});
+});
+
+describe("sorting by port", () => {
+	const port = (pid: number, ...ports: number[]) => ports.map((p) => ({ pid, port: p, host: "127.0.0.1" }) as ProcRow["listen"][number]);
+	const s = snap([
+		job({ pid: 1, cwd: "/w/a", listen: port(1, 8080) }),
+		job({ pid: 2, cwd: "/w/a" }),
+		job({ pid: 3, cwd: "/w/b", listen: port(3, 3000, 9229) }),
+		job({ pid: 4, cwd: "/w/c", listen: port(4, 5173) }),
+	]);
+	test("flat: lowest port ascending, highest port descending; no port goes last either way", () => {
+		const flat = { ...opts, view: "flat" as const };
+		expect(build(s, { ...flat, pluginSort: { key: "ports", desc: false } }).rows.map((r) => r.id)).toEqual(["3", "4", "1", "2"]);
+		expect(build(s, { ...flat, pluginSort: { key: "ports", desc: true } }).rows.map((r) => r.id)).toEqual(["3", "1", "4", "2"]);
+	});
+	test("grouped: folders follow their jobs' ports, and so do jobs within a folder", () => {
+		const asc = build(s, { ...opts, pluginSort: { key: "ports", desc: false } }).rows;
+		expect(asc.map((r) => r.id)).toEqual(["3", "4", "1", "2"]);
+		expect(asc.map((r) => labels(r.group)[1])).toEqual(["/w/b", "/w/c", "/w/a", "/w/a"]);
+	});
+	test("the grouped layout ignores the flat-only sorts", () => {
+		const byDir = build(s, { ...opts, pluginSort: { key: "dir", desc: true } }).rows;
+		expect(byDir.map((r) => labels(r.group)[1])).toEqual(["/w/a", "/w/a", "/w/b", "/w/c"]);
 	});
 });

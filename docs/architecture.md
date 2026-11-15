@@ -137,3 +137,8 @@ rows without a branch go last), and choosing a running column clears that sort. 
 cell leads with the project part of the path, with its location below, so narrow columns cut
 the location first. Narrow windows drop Up, Ports, Branch, App, Memory and then CPU, keeping
 Folder longest. No host or SDK change is needed.
+
+The Ports column sorts in both layouts, and the plugin does this sorting itself (stored in
+`prefs.flatSort`, the name kept for compatibility). Ascending uses each job's lowest port and
+descending its highest. Rows without a port go last. In the grouped layout, sections and folders
+are ordered by the same port rule. App, Folder and Branch sorts apply only to the flat layout.
