@@ -5,7 +5,7 @@ process.env.TOOLBELT_PLUGIN_VERSION = "0.0.1";
 import { describe, expect, test } from "bun:test";
 import type { ProcRow, Snapshot } from "../src/core";
 import { AGENTS, detectAgent } from "../src/agents";
-import { activity, agentState, facetsOf, SERVICE, build, facetCounts, projectPart, sortTree, statusDot, stripAnsi } from "../src/model";
+import { activity, agentState, facetsOf, SERVICE, build, MAX_NESTING, facetCounts, projectPart, sortTree, statusDot, stripAnsi } from "../src/model";
 import { HUES, type Cell, type Dot, type Row } from "@toolbelt/sdk";
 
 const job = (p: Partial<ProcRow> & { pid: number }): ProcRow => ({
@@ -345,4 +345,18 @@ describe("sorting by port", () => {
 		const byDir = build(s, { ...opts, pluginSort: { key: "dir", desc: true } }).rows;
 		expect(byDir.map((r) => labels(r.group)[1])).toEqual(["/w/a", "/w/a", "/w/b", "/w/c"]);
 	});
+});
+
+test("a very deep process tree keeps its first levels and lists the rest under the last one", () => {
+	const m = (pid: number, ppid: number) => ({ pid, ppid, depth: 1, displayArgv: [], argvCommand: `m${pid}`, cwd: "/w/a", listen: [], tty: "", stat: "S", etimeSec: 1, rssKb: 1, cpu: 0, pidCount: 1 });
+	const members = Array.from({ length: 14 }, (_, i) => m(100 + i, i === 0 ? 1 : 99 + i));
+	const rows = build(snap([job({ pid: 1, members })]), opts).rows;
+	let level = 1, row: Row = rows[0]!;
+	while (row.children?.length === 1 && row.children[0]!.children) (row = row.children[0]!), level++;
+	expect(level).toBe(MAX_NESTING);
+	const ids: string[] = [];
+	const all = (list: Row[]) => list.forEach((r) => (ids.push(r.id), r.children && all(r.children)));
+	all(rows);
+	expect(ids).toEqual(["1", ...members.map((x) => String(x.pid))]);
+	expect(row.children!.every((c) => !c.children)).toBe(true);
 });

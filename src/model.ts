@@ -307,7 +307,7 @@ export function build(snap: Snapshot, o: Options): Built {
 			return { ...jobRow(snap, j, o, childJobs), children: children.length ? children : undefined, open: childJobs.length > 0 || memberHit || undefined };
 		};
 		const roots = visible.filter((j) => j.parentRow === undefined || !pids.has(j.parentRow)).sort(order);
-		return { rows: roots.map(place), ...summary };
+		return { rows: capNesting(roots.map(place)), ...summary };
 	}
 
 	// Sections: by where, terminals before servers before apps, then by name (or the largest command for memory sorting).
@@ -365,7 +365,27 @@ export function build(snap: Snapshot, o: Options): Built {
 			for (const j of djs.sort(order)) rows.push({ ...place(j), group });
 		}
 	}
-	return { rows, ...summary };
+	return { rows: capNesting(rows), ...summary };
+}
+
+/** How many levels of rows a job keeps (the job itself is level 1). Toolbelt refuses a tree
+ *  nested deeper than its protocol limit, and a test runner a dozen shells down gets there:
+ *  anything below the last level is listed, in order, under its ancestor at that level. */
+export const MAX_NESTING = 8;
+export function capNesting(rows: Row[], level = 1): Row[] {
+	return rows.map((r) => {
+		if (!r.children) return r;
+		if (level < MAX_NESTING) return { ...r, children: capNesting(r.children, level + 1) };
+		const flat: Row[] = [];
+		const walk = (list: Row[]) => {
+			for (const c of list) {
+				flat.push({ ...c, children: undefined });
+				if (c.children) walk(c.children);
+			}
+		};
+		walk(r.children);
+		return { ...r, children: flat };
+	});
 }
 
 /** Rows ordered by a plugin sort; rows without a value (no branch, no port) go last either way. */
