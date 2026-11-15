@@ -126,3 +126,14 @@ The Processes table declares default column widths: Process grows with the windo
 280px) and the other columns are fixed. When the window is too narrow, Toolbelt hides columns
 from the right in the person's displayed order. It also stores resized widths and dragged
 column order. This requires Toolbelt 0.3.5 or newer and public SDK 0.3.3.
+
+A Grouped / Flat segment beside the scope sets the table layout (`prefs.view`, default
+grouped). Grouped keeps section and folder headers. Flat drops them and shows App, Folder and
+Branch as columns. Jobs started from a job, and a job's own processes, stay nested under it.
+The two layouts use different table ids (`processes`, `processes-flat`), so each keeps its own
+widths and order. Rows keep their pid ids, so selection carries over. Running sorts Process,
+CPU, Memory and Up as before. The plugin sorts App, Folder and Branch itself (`prefs.flatSort`;
+rows without a branch go last), and choosing a running column clears that sort. The Folder
+cell leads with the project part of the path, with its location below, so narrow columns cut
+the location first. Narrow windows drop Up, Ports, Branch, App, Memory and then CPU, keeping
+Folder longest. No host or SDK change is needed.
