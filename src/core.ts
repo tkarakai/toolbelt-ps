@@ -11,6 +11,8 @@ export type ProcRow = {
 	source: "typed" | "script" | "history" | "argv" | string; leaderGone: boolean; exe?: string; cwd: string; listen: Listen[]; where: string; tty: string;
 	stat: string; etimeSec: number; rssKb: number; cpu: number; pidCount: number; members: Member[]; parentRow?: number; via?: string;
 	term?: Record<string, string>; cmux?: { workspace: string; surface: string }; termLabel: string; shellAlive: boolean; keptIndex?: number; agent?: Agent;
+	/** The T3 Code thread this agent runs (filled in by the plugin, from T3 Code's database). */
+	t3?: { id: string; title: string; state: "working" | "waiting" | "idle"; project?: string };
 };
 export type KeptDTO = { index: number; name?: string; command: string; cwd: string; env: Record<string, string>; note: string; ports: number[]; session?: string; kept?: string; line: string; livePid?: number };
 export type Probe = { pid: number; port: number; pending: boolean; web?: boolean; url?: string; title?: string; status?: number };

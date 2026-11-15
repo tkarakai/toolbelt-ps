@@ -15,6 +15,7 @@ this source or install its dependencies.
 | `src/agents.ts` | Agent binaries/packages, display names and colors |
 | `src/conversation.ts` | Transcript parsing for conversation nodes |
 | `src/cmux.ts` | CMUX identity and navigation helpers |
+| `src/t3code.ts` | Read-only T3 Code thread lookup: titles, states, process-less threads |
 | `src/paths.ts` | Resolve packaged engine/TUI or repository-local development source |
 | `src/install.ts`, `src/tui.ts` | Confirmed terminal installation, backup/removal and status |
 | `src/running/src/` | Process collection, native macOS calls, command storage, actions and Ink TUI |
@@ -142,3 +143,14 @@ The Ports column sorts in both layouts, and the plugin does this sorting itself 
 `prefs.flatSort`, the name kept for compatibility). Ascending uses each job's lowest port and
 descending its highest. Rows without a port go last. In the grouped layout, sections and folders
 are ordered by the same port rule. App, Folder and Branch sorts apply only to the flat layout.
+
+T3 Code runs an agent process for a thread only while that thread is active. `src/t3code.ts`
+reads T3 Code's database (`$T3CODE_HOME/userdata/statev2.sqlite`, default `~/.t3`) read-only.
+It reads the file again only after it changes. A live agent matches a thread by its session ID,
+or by its folder when T3 Code started it. The agent then shows the thread's title, and T3 Code's
+pending questions mark it as waiting for you. Open threads (not archived, settled or a subagent)
+with no process become `t3:<thread>` rows in T3 Code's section, under their worktree folder.
+In the flat layout they come at the end. The State filter calls them "Agent not running". Their
+actions are Open T3 Code and, for Claude Code threads, Peek at the transcript. Jump on a live
+T3 Code agent brings T3 Code to the front. T3 Code has no link to a specific thread. An unreadable or changed
+database means no T3 information. Nothing is written.
