@@ -1,6 +1,8 @@
 # Changelog
 
 ## Unreleased
+
+## 0.1.5 — 2026-11-15
 - Fix Processes stopping with “Invalid protocol message” when a job had a very deep process tree, such as a test runner many shells down. Jobs keep eight levels of nesting and list deeper processes under the last level.
 - Sort the Processes table by port, ascending or descending, in both layouts. Ascending uses each job's lowest port and descending its highest. Jobs without a port go last either way. In the grouped layout, sections and folders follow the same order.
 
