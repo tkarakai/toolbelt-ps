@@ -398,6 +398,55 @@ export function capNesting(rows: Row[], level = 1): Row[] {
 	});
 }
 
+/** JSON values in `v` as Toolbelt counts them for its protocol limit: every object, array,
+ *  string, number and boolean (keys aren't counted). */
+export function countValues(v: unknown): number {
+	let n = 1;
+	if (v && typeof v === "object") for (const c of Object.values(v)) if (c !== undefined) n += countValues(c);
+	return n;
+}
+
+type Trim = (r: Row, nested: boolean) => Row;
+const noSpark = (c: Cell | undefined) => (c && typeof c === "object" && "spark" in c ? { ...c, spark: undefined } : c);
+const withoutSparks: Trim = (r) => (r.cells ? { ...r, cells: { ...r.cells, cpu: noSpark(r.cells.cpu)!, mem: noSpark(r.cells.mem)! } } : r);
+const only = (nestedOnly: boolean, t: Trim): Trim => (r, nested) => (nested || !nestedOnly ? t(r, nested) : r);
+/** What to leave out, in order, when a list gets too big to send: detail that a row already
+ *  shows elsewhere, or that is only seen after selecting a nested row. */
+const TRIMS: Trim[] = [
+	only(true, withoutSparks),
+	withoutSparks,
+	only(true, (r) => ({ ...r, details: undefined, stats: undefined })),
+	(r) => ({ ...r, details: undefined }),
+];
+const trimRows = (rows: Row[], t: Trim, nested = false): Row[] => rows.map((r) => {
+	const out = t(r, nested);
+	return out.children ? { ...out, children: trimRows(out.children, t, true) } : out;
+});
+
+/**
+ * Keeps the table rows within `budget` JSON values, since Toolbelt rejects (and reports as a
+ * crash) a message with more values than its protocol allows. Leaves out sparklines, then
+ * nested rows' details, then all details; as a last resort, drops rows from the end.
+ */
+export function fitRows(rows: Row[], budget: number): { rows: Row[]; trimmed: boolean; dropped: number } {
+	let size = countValues(rows);
+	if (size <= budget) return { rows, trimmed: false, dropped: 0 };
+	for (const t of TRIMS) {
+		rows = trimRows(rows, t);
+		size = countValues(rows);
+		if (size <= budget) return { rows, trimmed: true, dropped: 0 };
+	}
+	const kept: Row[] = [];
+	let used = 1;
+	for (const r of rows) {
+		const n = countValues(r);
+		if (used + n > budget) break;
+		kept.push(r);
+		used += n;
+	}
+	return { rows: kept, trimmed: true, dropped: rows.length - kept.length };
+}
+
 /** Rows ordered by a plugin sort; rows without a value (no branch, no port) go last either way. */
 function pluginCompare(snap: Snapshot, a: ProcRow, b: ProcRow, ps: PluginSort): number {
 	if (ps.key === "ports") return comparePorts(portOf([a], ps.desc), portOf([b], ps.desc), ps.desc);
@@ -476,9 +525,11 @@ function nestMembers(job: ProcRow, flat: Row[]): Row[] {
 	return tops.map((r) => clean(r as Row & { children: Row[] }));
 }
 
+/** Points per sparkline: the latest samples only, so long-running lists stay small. */
+export const SPARK_POINTS = 16;
 const spark = (o: Options, pid: number, key: "cpu" | "mem") => {
 	const h = o.history?.get(pid)?.[key];
-	return h && h.length > 1 ? h : undefined;
+	return h && h.length > 1 ? h.slice(-SPARK_POINTS) : undefined;
 };
 
 /** The pills on a job's second line: which agent, and how it (or any process) is doing. */
@@ -577,8 +628,8 @@ function jobRow(snap: Snapshot, r: ProcRow, o: Options, childJobs: ProcRow[] = [
 		actions: ["focus", "output", ...(url || childJobs.some((c) => webUrl(snap, c)) ? ["open"] : []), ...(stateLabel(r.stat) ? ["why"] : []), kept ? "edit-kept" : "keep", "copy", "restart", "stop", "kill"],
 		targets: targetsFor(snap, r, childJobs),
 		stats: [
-			{ label: "CPU", value: `${r.cpu.toFixed(1)}%`, spark: spark(o, r.pid, "cpu"), tone: cpuTone(r.cpu) },
-			{ label: "Memory", value: mem(r.rssKb), spark: spark(o, r.pid, "mem"), tone: memTone(r.rssKb) },
+			{ label: "CPU", value: `${r.cpu.toFixed(1)}%`, tone: cpuTone(r.cpu) },
+			{ label: "Memory", value: mem(r.rssKb), tone: memTone(r.rssKb) },
 			{ label: "Up", value: dur(r.etimeSec) },
 		],
 		details: [
@@ -641,8 +692,8 @@ function memberRow(snap: Snapshot, job: ProcRow, m: Member, o: Options): Row {
 		},
 		actions: ["output", ...(url ? ["open"] : []), ...(stateLabel(m.stat) ? ["why"] : []), "copy", "stop", "kill"],
 		stats: [
-			{ label: "CPU", value: `${m.cpu.toFixed(1)}%`, spark: spark(o, m.pid, "cpu"), tone: cpuTone(m.cpu) },
-			{ label: "Memory", value: mem(m.rssKb), spark: spark(o, m.pid, "mem"), tone: memTone(m.rssKb) },
+			{ label: "CPU", value: `${m.cpu.toFixed(1)}%`, tone: cpuTone(m.cpu) },
+			{ label: "Memory", value: mem(m.rssKb), tone: memTone(m.rssKb) },
 			{ label: "Up", value: dur(m.etimeSec) },
 		],
 		details: [

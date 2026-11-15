@@ -3,9 +3,11 @@ process.env.TOOLBELT_PLUGIN = "processes";
 process.env.TOOLBELT_PLUGIN_VERSION = "0.0.1";
 // The Processes plugin's list model: sections, folders, nesting, sorting, apps, search.
 import { describe, expect, test } from "bun:test";
-import type { ProcRow, Snapshot } from "../src/core";
+import type { Member, ProcRow, Snapshot } from "../src/core";
+import { LIMITS } from "@toolbelt/sdk/package";
+import { validateTree } from "@toolbelt/sdk/validation";
 import { AGENTS, detectAgent } from "../src/agents";
-import { activity, agentState, facetsOf, SERVICE, build, MAX_NESTING, facetCounts, projectPart, sortTree, statusDot, stripAnsi } from "../src/model";
+import { activity, agentState, facetsOf, SERVICE, build, MAX_NESTING, SPARK_POINTS, countValues, fitRows, facetCounts, projectPart, sortTree, statusDot, stripAnsi } from "../src/model";
 import { HUES, type Cell, type Dot, type Row } from "@toolbelt/sdk";
 
 const job = (p: Partial<ProcRow> & { pid: number }): ProcRow => ({
@@ -359,4 +361,66 @@ test("a very deep process tree keeps its first levels and lists the rest under t
 	all(rows);
 	expect(ids).toEqual(["1", ...members.map((x) => String(x.pid))]);
 	expect(row.children!.every((c) => !c.children)).toBe(true);
+});
+
+describe("protocol size", () => {
+	// Toolbelt refuses a message with more than LIMITS.nodes values and reports the plugin as crashed.
+	const member = (pid: number, ppid: number): Member => ({ pid, ppid, depth: 0, displayArgv: [], argvCommand: `node worker-${pid}.js --flag`, cwd: "/w/a", listen: [{ pid, port: pid, host: "" }], tty: "", stat: "S", etimeSec: 50, rssKb: 2048, cpu: 1.5, pidCount: 1 });
+	const big = (jobs: number, perJob: number) =>
+		snap(Array.from({ length: jobs }, (_, j) => job({ pid: (j + 1) * 1000, cwd: `/w/p${j % 7}`, tty: "ttys001", listen: [{ pid: (j + 1) * 1000, port: 3000 + j, host: "" }], members: Array.from({ length: perJob }, (_, k) => member((j + 1) * 1000 + k + 1, (j + 1) * 1000)) })));
+	const historyFor = (s: Snapshot) => new Map(s.rows.flatMap((r) => [r.pid, ...r.members.map((x) => x.pid)]).map((pid) => [pid, { cpu: Array.from({ length: 30 }, (_, i) => i), mem: Array.from({ length: 30 }, (_, i) => i * 100) }]));
+	const walk = (rows: Row[], f: (r: Row) => void) => rows.forEach((r) => (f(r), r.children && walk(r.children, f)));
+
+	test("sparklines are sent once, in the cells, with the latest points only", () => {
+		const s = big(2, 2);
+		const rows = build(s, { ...opts, history: historyFor(s) }).rows;
+		walk(rows, (r) => {
+			expect(r.stats!.every((x) => !x.spark)).toBe(true);
+			const cpu = r.cells!.cpu as { spark?: number[] };
+			expect(cpu.spark).toEqual(Array.from({ length: SPARK_POINTS }, (_, i) => 30 - SPARK_POINTS + i));
+		});
+	});
+
+	test("counts values the way Toolbelt does", () => {
+		expect(countValues({ a: [1, "x", { b: true }], c: undefined })).toBe(6);
+	});
+
+	test("a list that fits is sent as built", () => {
+		const rows = build(big(3, 2), opts).rows;
+		expect(fitRows(rows, LIMITS.nodes)).toEqual({ rows, trimmed: false, dropped: 0 });
+	});
+
+	test("a big list leaves out sparklines and details before any row, and passes validation", () => {
+		const s = big(60, 5);
+		const rows = build(s, { ...opts, history: historyFor(s) }).rows;
+		const full = countValues(rows);
+		const budget = Math.floor(full * 0.6);
+		const fit = fitRows(rows, budget);
+		expect(fit.trimmed).toBe(true);
+		expect(fit.dropped).toBe(0);
+		expect(countValues(fit.rows)).toBeLessThanOrEqual(budget);
+		const ids = (list: Row[]) => { const out: string[] = []; walk(list, (r) => out.push(r.id)); return out; };
+		expect(ids(fit.rows)).toEqual(ids(rows));
+		walk(fit.rows, (r) => expect((r.cells!.cpu as { spark?: number[] }).spark).toBeUndefined());
+	});
+
+	test("as a last resort, rows are dropped from the end", () => {
+		const rows = build(big(40, 3), opts).rows;
+		const fit = fitRows(rows, 2000);
+		expect(fit.dropped).toBeGreaterThan(0);
+		expect(fit.rows.length + fit.dropped).toBe(rows.length);
+		expect(fit.rows.map((r) => r.id)).toEqual(rows.slice(0, fit.rows.length).map((r) => r.id));
+		expect(countValues(fit.rows)).toBeLessThanOrEqual(2000);
+	});
+
+	test("hundreds of jobs with full history still make a valid tree", () => {
+		const s = big(300, 6);
+		const rows = build(s, { ...opts, history: historyFor(s) }).rows;
+		expect(countValues(rows)).toBeGreaterThan(LIMITS.nodes);
+		const fit = fitRows(rows, LIMITS.nodes - 1000);
+		// As sent: JSON drops the left-out (undefined) fields.
+		const sent = JSON.parse(JSON.stringify({ type: "table", id: "processes", columns: [{ key: "name", title: "Process" }], rows: fit.rows }));
+		expect(() => validateTree(sent)).not.toThrow();
+		expect(() => validateTree(JSON.parse(JSON.stringify({ ...sent, rows })))).toThrow("Protocol complexity limit");
+	});
 });

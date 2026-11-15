@@ -18,8 +18,9 @@ import { coreScript } from "./paths";
 import { readCmuxLocations } from "./cmux";
 import { claudeTranscript, isT3, readT3Threads, threadOf, type T3Thread } from "./t3code";
 import { Tui } from "./tui";
+import { LIMITS } from "@toolbelt/sdk/package";
 import { claudeWaiting, AGENTS } from "./agents";
-import { agentOf, agentState, build, COLUMN_SORT, displayName, dur, facetCounts, FILTERS, locate, projectPart, SERVICE, SORT_COLUMN, sourceLabel, statusDot, stripAnsi, tildify, webUrl, isPluginSort, threadOfRow, pluginSortFor, type Built, type FilterId, type PluginSort, type Options, type Service, type View } from "./model";
+import { agentOf, agentState, build, COLUMN_SORT, displayName, dur, facetCounts, FILTERS, locate, projectPart, SERVICE, SORT_COLUMN, sourceLabel, statusDot, stripAnsi, tildify, webUrl, isPluginSort, threadOfRow, pluginSortFor, fitRows, countValues, type Built, type FilterId, type PluginSort, type Options, type Service, type View } from "./model";
 
 const core = new Core(coreScript(), {
 	onChanged: () => void refresh(),
@@ -258,7 +259,7 @@ function processesScreen(): Node {
 	const o: Options = { query, showAll, sort: sortKey(), desc: sortDesc(), history, filters: prefs.filters, waiting: waitingCheck(), view, pluginSort, t3 };
 	last = snap ? build(snap, o) : null;
 	const filtering = FILTERS.some((f) => prefs.filters[f.id]?.length);
-	return withScope({
+	const page = withScope({
 		type: "page",
 		search: { placeholder: "Filter by command, folder, port, pid, agent…" },
 		filters: filtersFor(o),
@@ -274,7 +275,7 @@ function processesScreen(): Node {
 				// person's order), and the process name always stays.
 				columns: view === "flat" ? FLAT_COLUMNS : GROUPED_COLUMNS,
 				sort: pluginSort ?? { key: SORT_COLUMN[sortKey()], desc: sortDesc() },
-				rows: last?.rows ?? [],
+				rows: [] as Row[],
 				actions: PROCESS_ACTIONS,
 				empty: {
 					title: !snap ? "Loading…" : query || filtering ? "No process matches" : "Nothing running",
@@ -284,7 +285,15 @@ function processesScreen(): Node {
 			},
 		],
 	}, showAll, view);
+	// Toolbelt rejects a message with too many values, so the rows get what the rest leaves.
+	const table = page.children.find((c) => c.type === "table") as Extract<Node, { type: "table" }>;
+	const fit = fitRows(last?.rows ?? [], LIMITS.nodes - VALUE_MARGIN - countValues(page));
+	table.rows = fit.rows;
+	if (fit.trimmed && page.summary) page.summary += fit.dropped ? ` · ${fit.dropped} not shown, too many to list` : " · some details left out to fit";
+	return page;
 }
+/** Values kept free for the message around the page, and for the summary we may lengthen. */
+const VALUE_MARGIN = 500;
 
 const GROUPED_COLUMNS: Column[] = [
 	{ key: "name", title: "Process", grow: true, minWidth: 280, sortable: true },

@@ -1,6 +1,7 @@
 # Changelog
 
 ## Unreleased
+- Fix Processes stopping with “Invalid protocol message: Protocol complexity limit” once a long list had been open a while. Sparklines show the latest 16 samples and appear only in the CPU and Memory cells, not again in the row details, which roughly halves what a long list sends. If a list is still too big, Processes leaves out sparklines, then details of nested rows, then all details, and says so in the summary. As a last resort it lists fewer rows, never none.
 
 ## 0.1.6 — 2026-11-15
 - Show T3 Code threads. Agents T3 Code runs show their thread's title instead of the first prompt, and they show “waiting for you” while T3 Code waits for an answer. T3 Code stops an idle thread's agent, so open threads that have no process are listed too, under T3 Code and their folder, as “not running” or snoozed. Peek shows a Claude Code thread's conversation, and Open T3 Code (or Jump, for a running agent) brings T3 Code to the front. Processes reads T3 Code's database read-only.
