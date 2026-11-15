@@ -1,6 +1,7 @@
 # Changelog
 
 ## Unreleased
+- Show T3 Code threads. Agents T3 Code runs show their thread's title instead of the first prompt, and they show “waiting for you” while T3 Code waits for an answer. T3 Code stops an idle thread's agent, so open threads that have no process are listed too, under T3 Code and their folder, as “not running” or snoozed. Peek shows a Claude Code thread's conversation, and Open T3 Code (or Jump, for a running agent) brings T3 Code to the front. Processes reads T3 Code's database read-only.
 
 ## 0.1.5 — 2026-11-15
 - Fix Processes stopping with “Invalid protocol message” when a job had a very deep process tree, such as a test runner many shells down. Jobs keep eight levels of nesting and list deeper processes under the last level.

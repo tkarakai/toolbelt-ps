@@ -16,9 +16,10 @@ import { readConversation } from "./conversation";
 import { Core, type Hello, type KeepDraft, type Peek, type Snapshot, type SortKey } from "./core";
 import { coreScript } from "./paths";
 import { readCmuxLocations } from "./cmux";
+import { claudeTranscript, isT3, readT3Threads, threadOf, type T3Thread } from "./t3code";
 import { Tui } from "./tui";
 import { claudeWaiting, AGENTS } from "./agents";
-import { agentOf, agentState, build, COLUMN_SORT, displayName, dur, facetCounts, FILTERS, locate, projectPart, SERVICE, SORT_COLUMN, sourceLabel, statusDot, stripAnsi, tildify, webUrl, isPluginSort, pluginSortFor, type Built, type FilterId, type PluginSort, type Options, type Service, type View } from "./model";
+import { agentOf, agentState, build, COLUMN_SORT, displayName, dur, facetCounts, FILTERS, locate, projectPart, SERVICE, SORT_COLUMN, sourceLabel, statusDot, stripAnsi, tildify, webUrl, isPluginSort, threadOfRow, pluginSortFor, type Built, type FilterId, type PluginSort, type Options, type Service, type View } from "./model";
 
 const core = new Core(coreScript(), {
 	onChanged: () => void refresh(),
@@ -29,6 +30,8 @@ const tui = new Tui({ onChange: () => ctx.invalidate() });
 
 // ── state ────────────────────────────────────────────────────────────────
 let snap: Snapshot | null = null;
+/** T3 Code's threads (empty when it isn't installed). */
+let t3: T3Thread[] = [];
 let hello: Hello | null = null;
 const installedTerminals = new Set(["terminal"]);
 function availableTerminals(): Hello["terminals"] {
@@ -64,7 +67,7 @@ const HISTORY = 30;
 
 /** The dialog over the Processes or Kept page. */
 type Open =
-	| { kind: "output"; pid: number; child?: number; source?: string; data?: Peek; messages?: Message[]; error?: string }
+	| { kind: "output"; pid: number; child?: number; source?: string; data?: Peek; messages?: Message[]; error?: string; thread?: T3Thread }
 	/** Keep a process (`pid`), edit a kept command (`index`), or add one by hand (neither). */
 	| { kind: "keep"; pid?: number; index?: number; draft: KeepDraft; saving?: boolean };
 let dialog: Open | null = null;
@@ -77,6 +80,14 @@ async function refresh() {
 		snap = await core.call<Snapshot>("snapshot");
         const cmux = readCmuxLocations();
         for (const row of snap.rows) row.cmux = cmux.get(row.term?.cmuxsurface?.toLowerCase() ?? "");
+		// Agents T3 Code runs go by their thread's title; T3 Code knows when it waits for you.
+		t3 = readT3Threads();
+		for (const row of snap.rows) {
+			const thread = threadOf(row, t3);
+			if (!thread) continue;
+			row.t3 = { id: thread.id, title: thread.title, state: thread.state, project: thread.project };
+			if (row.agent) row.agent.title = thread.title;
+		}
 		recordHistory(snap);
 		ctx.badge(snap.rows.filter((r) => showAll || r.kind !== "app").length || null);
 		if (dialog?.kind === "output") await loadOutput();
@@ -112,6 +123,14 @@ const PEEK_LINES = 1000;
 async function loadOutput() {
 	if (dialog?.kind !== "output") return;
 	const d = dialog;
+	if (d.thread) {
+		// A T3 Code thread with no process: its Claude Code transcript.
+		const transcript = d.thread.session ? claudeTranscript(d.thread.session, d.thread.cwd) : undefined;
+		d.messages = transcript ? readConversation(transcript, "claude") : [];
+		d.data = { title: d.thread.title, lines: [], sources: [], kind: "conversation" };
+		d.error = transcript ? undefined : "This thread's conversation file wasn't found.";
+		return;
+	}
 	try {
 		const conversation = d.source === "@transcript";
 		d.data = await core.call<Peek>("peek", { pid: d.pid, ...(d.child ? { child: d.child } : {}), ...(d.source ? { source: d.source } : {}), lines: conversation ? 1 : PEEK_LINES });
@@ -146,8 +165,10 @@ async function addKept(v: { name: string; command: string; cwd: string; note: st
 /** Claude Code says when it waits for the person; read once per render (it's a small file). */
 function waitingCheck(): Options["waiting"] {
 	const claude = new Set(snap?.rows.filter((r) => r.agent?.harness === "claude").map((r) => r.pid));
+	const t3Waiting = new Set(snap?.rows.filter((r) => r.t3?.state === "waiting").map((r) => r.pid));
 	const seen = new Map<number, boolean>();
 	return (pid) => {
+		if (t3Waiting.has(pid)) return true;
 		if (!claude.has(pid)) return false;
 		if (!seen.has(pid)) seen.set(pid, claudeWaiting(pid));
 		return seen.get(pid)!;
@@ -183,18 +204,18 @@ const sourceIcon = (s: string | undefined) => (s === undefined ? "square-termina
 function outputDialog(d: Extract<Open, { kind: "output" }>): Dialog {
 	const { list, showing } = outputSources(d);
 	const key = (s: string | undefined) => s ?? "@terminal";
-	const row = locate(snap, d.pid);
-	const name = row ? (row.member ? row.member.argvCommand : displayName(row.row)) : String(d.pid);
-	const conversation = showing === "@transcript";
-	const id = `out:${d.pid}:${d.child ?? ""}:${showing ?? ""}`;
+	const row = d.thread ? undefined : locate(snap, d.pid);
+	const name = d.thread ? d.thread.title : row ? (row.member ? row.member.argvCommand : displayName(row.row)) : String(d.pid);
+	const conversation = d.thread !== undefined || showing === "@transcript";
+	const id = d.thread ? `out:t3:${d.thread.id}` : `out:${d.pid}:${d.child ?? ""}:${showing ?? ""}`;
 	return {
 		id: "output",
 		title: `Peek — ${name}`,
-		description: d.error ?? (conversation ? `${row?.row.agent?.harness ?? "Agent"} conversation · ${d.messages?.length ?? 0} messages · live` : `${d.data?.title ?? "…"} · ${d.data?.lines.length ?? 0} lines · live`),
+		description: d.error ?? (d.thread ? `T3 Code thread · not running · ${d.messages?.length ?? 0} messages` : conversation ? `${row?.row.agent?.harness ?? "Agent"} conversation · ${d.messages?.length ?? 0} messages · live` : `${d.data?.title ?? "…"} · ${d.data?.lines.length ?? 0} lines · live`),
 		wide: true,
 		resizable: true,
 		children: [
-			...(list.length > 1 ? [{ type: "segmented" as const, id: "output-source", value: key(showing), options: list.map((s) => ({ value: key(s), label: sourceLabel(s), icon: sourceIcon(s) })) }] : []),
+			...(list.length > 1 && !d.thread ? [{ type: "segmented" as const, id: "output-source", value: key(showing), options: list.map((s) => ({ value: key(s), label: sourceLabel(s), icon: sourceIcon(s) })) }] : []),
 			conversation
 				? { type: "conversation" as const, id, messages: d.messages ?? [], empty: d.data ? "No messages yet." : "Loading…" }
 				: { type: "terminal" as const, id, lines: d.data?.lines ?? [], follow: true, empty: d.data ? "No output." : "Loading…" },
@@ -234,7 +255,7 @@ function processesScreen(): Node {
 	if (core.error) return unavailable();
 	const view: View = prefs.view === "flat" ? "flat" : "grouped";
 	const pluginSort = pluginSortFor(view, prefs.flatSort);
-	const o: Options = { query, showAll, sort: sortKey(), desc: sortDesc(), history, filters: prefs.filters, waiting: waitingCheck(), view, pluginSort };
+	const o: Options = { query, showAll, sort: sortKey(), desc: sortDesc(), history, filters: prefs.filters, waiting: waitingCheck(), view, pluginSort, t3 };
 	last = snap ? build(snap, o) : null;
 	const filtering = FILTERS.some((f) => prefs.filters[f.id]?.length);
 	return withScope({
@@ -292,6 +313,7 @@ const FLAT_COLUMNS: Column[] = [
  */
 const PROCESS_ACTIONS: Action[] = [
 	{ id: "focus", label: "Jump to terminal", icon: "square-arrow-out-up-right", inline: true, group: "go", key: "j" },
+	{ id: "t3-open", label: "Open T3 Code", icon: "app-window", inline: true, group: "go", key: "j" },
 	{ id: "output", label: "Peek", icon: "scan-eye", inline: true, group: "go", key: "p" },
 	{ id: "open", label: "Open in browser", icon: "globe", inline: true, group: "go", key: "b" },
 	{ id: "why", label: "Why is it still running?", icon: "circle-help", group: "go", key: "w" },
@@ -414,6 +436,12 @@ function quickView(): Node {
 		})),
 		empty: { title: "Nothing running", icon: "terminal" },
 	};
+}
+
+/** T3 Code's window (it has no link to a thread, only to the app). */
+async function openT3() {
+	const p = Bun.spawn(["open", "-b", "com.t3tools.t3code"], { stdout: "ignore", stderr: "ignore" });
+	if ((await p.exited) !== 0) ctx.toast("Couldn't open T3 Code", "error");
 }
 
 // ── plugin ───────────────────────────────────────────────────────────────
@@ -577,20 +605,33 @@ const ctx = definePlugin({
 					break;
 				}
 				case "focus":
-					if (row) await core.call("focus", { pid: row.pid });
+					// T3 Code's agents have no terminal: bring T3 Code forward instead.
+					if (row && isT3(row.where) && !row.tty) await openT3();
+					else if (row) await core.call("focus", { pid: row.pid });
+					break;
+				case "t3-open":
+					await openT3();
 					break;
 				case "open": {
 					const url = targetUrl ?? (found && snap && webUrl(snap, found.member ?? found.row));
 					if (url) await core.call("openUrl", { url });
 					break;
 				}
-				case "output":
+				case "output": {
+					const thread = threadOfRow({ t3 }, payload?.rowId);
+					if (thread) {
+						dialog = { kind: "output", pid: 0, thread };
+						dialogScreen = "processes";
+						loadOutput();
+						return c.invalidate();
+					}
 					if (!row) break;
 					dialog = { kind: "output", pid: row.pid, child, source: !child && row.agent?.transcript ? "@transcript" : undefined };
 					dialogScreen = "processes";
 					c.invalidate();
 					await loadOutput();
 					return c.invalidate();
+				}
 				case "copy": {
 					const k = screen === "kept" ? keptAt(payload?.rowId) : undefined;
 					const cwd = k ? k.cwd : (found?.member?.cwd ?? row?.cwd ?? "");

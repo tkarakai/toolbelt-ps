@@ -10,6 +10,7 @@ import type { Cell, DetailItem, Dot, Hue, Row, Tag, Target, Tone } from "@toolbe
 import { search, type Search } from "@toolbelt/sdk/search";
 import { agentById, detectAgent, type AgentKind } from "./agents";
 import type { Agent, Listen, Member, ProcRow, Snapshot, SortKey } from "./core";
+import { isT3, type T3Thread } from "./t3code";
 
 const home = homedir();
 export const tildify = (p: string) => (p === home ? "~" : p.startsWith(home + "/") ? "~" + p.slice(home.length) : p);
@@ -110,6 +111,8 @@ export type Options = {
 	view?: View;
 	/** Sorted by app, folder, branch (flat view) or port instead of running's sort. */
 	pluginSort?: PluginSort;
+	/** T3 Code's threads: open ones without an agent process are listed too. */
+	t3?: T3Thread[];
 };
 
 // ── what a process is and how it's doing ─────────────────────────────────
@@ -148,7 +151,7 @@ export function activity(r: { stat: string; cpu: number; pid: number; agent?: Ag
 
 /** What its dot says: a web server, something else listening, an agent (busy / idle / waiting
  *  for you), a process in trouble (paused, zombie), or just a process. */
-export type Service = "web" | "port" | "agent-busy" | "agent-idle" | "agent-waiting" | "paused" | "zombie" | "disk" | "agent-new" | "plain";
+export type Service = "web" | "port" | "agent-busy" | "agent-idle" | "agent-waiting" | "paused" | "zombie" | "disk" | "agent-new" | "agent-stopped" | "plain";
 export const SERVICE: Record<Service, { label: string; dot: Exclude<Dot, string> }> = {
 	"agent-busy": { label: "Agent working", dot: { color: "green", pulse: true } },
 	"agent-waiting": { label: "Agent waiting for you", dot: { color: "fuchsia", pulse: true } },
@@ -159,6 +162,7 @@ export const SERVICE: Record<Service, { label: string; dot: Exclude<Dot, string>
     zombie: { label: "Zombie", dot: { color: "red" } },
     disk: { label: "Waiting on disk", dot: { color: "amber" } },
     "agent-new": { label: "Agent new session", dot: { color: "green", dim: true } },
+	"agent-stopped": { label: "Agent not running (T3 Code)", dot: { color: "muted" } },
 	plain: { label: "Other processes", dot: { color: "muted" } },
 };
 
@@ -215,6 +219,12 @@ export function facetCounts(snap: Snapshot, o: Options): Record<FilterId, Map<st
 			out[k].set(f[k], (out[k].get(f[k]) ?? 0) + 1);
 		}
 	}
+	const where = t3Section(snap);
+	for (const t of stoppedThreads(snap, o)) {
+		if (!s.test(threadSearchable(t, where))) continue;
+		const f = threadFacets(t);
+		for (const k of Object.keys(out) as FilterId[]) if (passes(f, { ...o.filters, [k]: [] })) out[k].set(f[k], (out[k].get(f[k]) ?? 0) + 1);
+	}
 	return out;
 }
 
@@ -241,7 +251,7 @@ export function searchable(snap: Snapshot, r: ProcRow): (string | number | undef
 		displayName(r), r.command, r.argvCommand, r.cwd, tildify(r.cwd), r.pid, r.kind, sectionLabel(r.where), r.termLabel, r.cmux?.workspace, r.cmux?.surface, r.tty, r.exe, stateLabel(r.stat), keptName,
 		...r.listen.flatMap((l) => [`:${l.port}`, l.host]),
 		snap.branches[r.cwd] ?? undefined, webUrl(snap, r), ...probeTitles(snap, r),
-		a?.harness, a?.title, a?.model, a && agentState(a), a?.branch, a?.sessionId,
+		a?.harness, a?.title, a?.model, a && agentState(a), a?.branch, a?.sessionId, r.t3?.title, r.t3?.project,
 		...r.members.flatMap(memberSearchable),
 	];
 }
@@ -307,7 +317,7 @@ export function build(snap: Snapshot, o: Options): Built {
 			return { ...jobRow(snap, j, o, childJobs), children: children.length ? children : undefined, open: childJobs.length > 0 || memberHit || undefined };
 		};
 		const roots = visible.filter((j) => j.parentRow === undefined || !pids.has(j.parentRow)).sort(order);
-		return { rows: capNesting(roots.map(place)), ...summary };
+		return { rows: withThreads(snap, capNesting(roots.map(place)), o, s), ...summary };
 	}
 
 	// Sections: by where, terminals before servers before apps, then by name (or the largest command for memory sorting).
@@ -365,7 +375,7 @@ export function build(snap: Snapshot, o: Options): Built {
 			for (const j of djs.sort(order)) rows.push({ ...place(j), group });
 		}
 	}
-	return { rows: capNesting(rows), ...summary };
+	return { rows: withThreads(snap, capNesting(rows), o, s), ...summary };
 }
 
 /** How many levels of rows a job keeps (the job itself is level 1). Toolbelt refuses a tree
@@ -572,6 +582,7 @@ function jobRow(snap: Snapshot, r: ProcRow, o: Options, childJobs: ProcRow[] = [
 			{ label: "Up", value: dur(r.etimeSec) },
 		],
 		details: [
+			...(r.t3 ? threadDetails({ title: r.t3.title, project: r.t3.project }) : []),
 			{ section: C, label: "Command", value: r.command, mono: true },
 			...(r.command !== r.argvCommand ? [{ section: C, label: "Running as", value: r.argvCommand, mono: true }] : []),
 			{ section: C, label: "Directory", value: tildify(r.cwd), mono: true },
@@ -647,6 +658,92 @@ function memberRow(snap: Snapshot, job: ProcRow, m: Member, o: Options): Row {
 }
 
 /** The job a pid belongs to, and the member if it isn't the job itself. */
+// ── T3 Code threads without a process ────────────────────────────────────
+/** Open T3 Code threads that have no agent process (T3 Code starts one when you send the
+ *  thread a message). Ids are `t3:<thread>`, never a pid. */
+export function stoppedThreads(snap: Snapshot, o: Pick<Options, "t3">): T3Thread[] {
+	const live = new Set(snap.rows.map((r) => r.t3?.id).filter(Boolean));
+	return (o.t3 ?? []).filter((t) => t.open && !live.has(t.id)).sort((a, b) => b.lastActive - a.lastActive);
+}
+export const THREAD_ROW = "t3:";
+export const threadOfRow = (o: Pick<Options, "t3">, rowId: unknown) => (typeof rowId === "string" && rowId.startsWith(THREAD_ROW) ? o.t3?.find((t) => t.id === rowId.slice(THREAD_ROW.length)) : undefined);
+
+/** The section T3 Code's agents are in: as running names it (“T3 Code (Beta)”), else “T3 Code”. */
+const t3Section = (snap: Snapshot) => snap.rows.find((r) => isT3(r.where))?.where ?? "T3 Code";
+const threadFacets = (t: T3Thread): Record<FilterId, string> => ({ agent: agentById(t.harness) ? t.harness : "none", service: threadService(t) });
+const threadService = (t: T3Thread): Service => (t.state === "waiting" ? "agent-waiting" : t.state === "working" ? "agent-busy" : "agent-stopped");
+const threadSearchable = (t: T3Thread, where: string) => [t.title, t.project, t.cwd, t.cwd && tildify(t.cwd), t.branch, where, "T3 Code", t.harness, agentById(t.harness)?.name, "not running", t.session];
+const threadDetails = (t: Pick<T3Thread, "title" | "project">) => [
+	{ section: "T3 Code", label: "Thread", value: t.title },
+	...(t.project ? [{ section: "T3 Code", label: "Project", value: t.project }] : []),
+];
+
+function threadRow(t: T3Thread, o: Options, where: string): Row {
+	const agent = agentById(t.harness);
+	const now = o.now ?? Date.now();
+	const ago = dur(Math.max(0, (now - t.lastActive) / 1000));
+	const snoozed = t.snoozedUntil ? new Date(t.snoozedUntil).toLocaleString(undefined, { weekday: "short", hour: "numeric", minute: "2-digit" }) : undefined;
+	const svc = threadService(t);
+	const who = agent?.name ?? "The agent";
+	const label = t.state === "waiting" ? `T3 Code is waiting for your answer — ${who} isn't running` : t.state === "working" ? `T3 Code says ${who} is working, but no process was found` : `Not running — T3 Code starts ${who} when you send this thread a message`;
+	const dir = t.cwd ? tildify(t.cwd) : "";
+	const S = "T3 Code";
+	return {
+		id: THREAD_ROW + t.id,
+		cells: {
+			name: {
+				text: t.title,
+				sub: [t.project, snoozed ? `snoozed until ${snoozed}` : `last active ${ago} ago`].filter(Boolean).join(" · "),
+				tags: [...(agent ? [{ text: agent.name, color: agent.hue, icon: asset(`agent-${agent.id}`) }] : []), { text: t.state === "idle" ? "not running" : t.state === "waiting" ? "waiting for you" : "working", color: t.state === "idle" ? ("muted" as const) : ACTIVITY[t.state].color }],
+				dot: { ...SERVICE[svc].dot, label },
+				mono: false,
+			},
+			ports: "",
+			cpu: "",
+			mem: "",
+			uptime: "",
+			...(o.view === "flat" ? { where: { text: sectionLabel(where), icon: sectionIcon(where, [], true, []) }, dir: folderCell(dir), ...(t.branch ? { branch: { text: t.branch, icon: "git-branch", mono: true } } : {}) } : {}),
+		},
+		actions: ["t3-open", ...(t.harness === "claude" && t.session ? ["output"] : [])],
+		details: [
+			...threadDetails(t),
+			{ section: S, label: "State", value: t.state === "idle" ? "Not running" : t.state === "waiting" ? "Waiting for you" : "Working" },
+			{ section: S, label: "Last active", value: new Date(t.lastActive).toLocaleString() },
+			...(snoozed ? [{ section: S, label: "Snoozed until", value: new Date(t.snoozedUntil!).toLocaleString() }] : []),
+			...(dir ? [{ section: S, label: "Folder", value: dir, mono: true }] : []),
+			...(t.branch ? [{ section: S, label: "Git branch", value: t.branch, mono: true }] : []),
+			...(t.session ? [{ section: S, label: `${who} session`, value: t.session, mono: true }] : []),
+		],
+	};
+}
+
+/** The table's rows with T3 Code's process-less threads added: in the grouped layout under
+ *  T3 Code's section and their folder (after its running jobs), in the flat layout at the end. */
+function withThreads(snap: Snapshot, rows: Row[], o: Options, s: Search): Row[] {
+	const where = t3Section(snap);
+	const threads = stoppedThreads(snap, o).filter((t) => s.test(threadSearchable(t, where)) && passes(threadFacets(t), o.filters));
+	if (!threads.length) return rows;
+	const out = [...rows];
+	for (const t of threads) {
+		const row = threadRow(t, o, where);
+		if (o.view === "flat") {
+			out.push(row);
+			continue;
+		}
+		const secId = `w:${where}`, dir = t.cwd ?? "", dirId = `d:${where}:${dir}`;
+		const groupOf = (r: Row) => (Array.isArray(r.group) ? (r.group as { id?: string }[]) : []);
+		const lastIn = (id: string, level: number) => {
+			for (let i = out.length - 1; i >= 0; i--) if (groupOf(out[i]!)[level]?.id === id) return i;
+			return -1;
+		};
+		const section = (out[lastIn(secId, 0)]?.group as object[] | undefined)?.[0] ?? { id: secId, label: sectionLabel(where), icon: sectionIcon(where, [], true, []) };
+		const folder = (out[lastIn(dirId, 1)]?.group as object[] | undefined)?.[1] ?? { id: dirId, label: tildify(dir) || "—", strong: dir && dir !== "/" ? projectPart(tildify(dir)) : undefined, sub: (dir && snap.branches[dir]) || t.branch };
+		const at = lastIn(dirId, 1) >= 0 ? lastIn(dirId, 1) + 1 : lastIn(secId, 0) >= 0 ? lastIn(secId, 0) + 1 : out.length;
+		out.splice(at, 0, { ...row, group: [section, folder] as Row["group"] });
+	}
+	return out;
+}
+
 export function locate(snap: Snapshot | null, pid: number): { row: ProcRow; member?: Member } | undefined {
 	for (const row of snap?.rows ?? []) {
 		if (row.pid === pid) return { row };
