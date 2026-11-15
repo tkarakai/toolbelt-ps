@@ -5,7 +5,7 @@ process.env.TOOLBELT_PLUGIN_VERSION = "0.0.1";
 import { describe, expect, test } from "bun:test";
 import type { ProcRow, Snapshot } from "../src/core";
 import { AGENTS, detectAgent } from "../src/agents";
-import { activity, agentState, facetsOf, SERVICE, build, facetCounts, projectPart, sortTree, statusDot, stripAnsi } from "../src/model";
+import { activity, agentState, facetsOf, SERVICE, build, MAX_NESTING, facetCounts, projectPart, sortTree, statusDot, stripAnsi } from "../src/model";
 import { HUES, type Cell, type Dot, type Row } from "@toolbelt/sdk";
 
 const job = (p: Partial<ProcRow> & { pid: number }): ProcRow => ({
@@ -305,9 +305,9 @@ describe("flat layout", () => {
 
 	test("sorting by folder or branch; rows without a branch go last either way", () => {
 		const s = snap([job({ pid: 1, cwd: "/w/c" }), job({ pid: 2, cwd: "/w/a" }), job({ pid: 3, cwd: "/w/b" })], { branches: { "/w/a": "zeta", "/w/b": "alpha" } });
-		expect(build(s, { ...flat, flatSort: { key: "dir", desc: false } }).rows.map((r) => r.id)).toEqual(["2", "3", "1"]);
-		expect(build(s, { ...flat, flatSort: { key: "branch", desc: false } }).rows.map((r) => r.id)).toEqual(["3", "2", "1"]);
-		expect(build(s, { ...flat, flatSort: { key: "branch", desc: true } }).rows.map((r) => r.id)).toEqual(["2", "3", "1"]);
+		expect(build(s, { ...flat, pluginSort: { key: "dir", desc: false } }).rows.map((r) => r.id)).toEqual(["2", "3", "1"]);
+		expect(build(s, { ...flat, pluginSort: { key: "branch", desc: false } }).rows.map((r) => r.id)).toEqual(["3", "2", "1"]);
+		expect(build(s, { ...flat, pluginSort: { key: "branch", desc: true } }).rows.map((r) => r.id)).toEqual(["2", "3", "1"]);
 	});
 
 	test("processes inside a job show a folder only when it differs", () => {
@@ -321,4 +321,42 @@ describe("flat layout", () => {
 	test("grouped stays the default", () => {
 		expect(build(snap([job({ pid: 1 })]), opts).rows[0]!.group).toBeDefined();
 	});
+});
+
+describe("sorting by port", () => {
+	const port = (pid: number, ...ports: number[]) => ports.map((p) => ({ pid, port: p, host: "127.0.0.1" }) as ProcRow["listen"][number]);
+	const s = snap([
+		job({ pid: 1, cwd: "/w/a", listen: port(1, 8080) }),
+		job({ pid: 2, cwd: "/w/a" }),
+		job({ pid: 3, cwd: "/w/b", listen: port(3, 3000, 9229) }),
+		job({ pid: 4, cwd: "/w/c", listen: port(4, 5173) }),
+	]);
+	test("flat: lowest port ascending, highest port descending; no port goes last either way", () => {
+		const flat = { ...opts, view: "flat" as const };
+		expect(build(s, { ...flat, pluginSort: { key: "ports", desc: false } }).rows.map((r) => r.id)).toEqual(["3", "4", "1", "2"]);
+		expect(build(s, { ...flat, pluginSort: { key: "ports", desc: true } }).rows.map((r) => r.id)).toEqual(["3", "1", "4", "2"]);
+	});
+	test("grouped: folders follow their jobs' ports, and so do jobs within a folder", () => {
+		const asc = build(s, { ...opts, pluginSort: { key: "ports", desc: false } }).rows;
+		expect(asc.map((r) => r.id)).toEqual(["3", "4", "1", "2"]);
+		expect(asc.map((r) => labels(r.group)[1])).toEqual(["/w/b", "/w/c", "/w/a", "/w/a"]);
+	});
+	test("the grouped layout ignores the flat-only sorts", () => {
+		const byDir = build(s, { ...opts, pluginSort: { key: "dir", desc: true } }).rows;
+		expect(byDir.map((r) => labels(r.group)[1])).toEqual(["/w/a", "/w/a", "/w/b", "/w/c"]);
+	});
+});
+
+test("a very deep process tree keeps its first levels and lists the rest under the last one", () => {
+	const m = (pid: number, ppid: number) => ({ pid, ppid, depth: 1, displayArgv: [], argvCommand: `m${pid}`, cwd: "/w/a", listen: [], tty: "", stat: "S", etimeSec: 1, rssKb: 1, cpu: 0, pidCount: 1 });
+	const members = Array.from({ length: 14 }, (_, i) => m(100 + i, i === 0 ? 1 : 99 + i));
+	const rows = build(snap([job({ pid: 1, members })]), opts).rows;
+	let level = 1, row: Row = rows[0]!;
+	while (row.children?.length === 1 && row.children[0]!.children) (row = row.children[0]!), level++;
+	expect(level).toBe(MAX_NESTING);
+	const ids: string[] = [];
+	const all = (list: Row[]) => list.forEach((r) => (ids.push(r.id), r.children && all(r.children)));
+	all(rows);
+	expect(ids).toEqual(["1", ...members.map((x) => String(x.pid))]);
+	expect(row.children!.every((c) => !c.children)).toBe(true);
 });

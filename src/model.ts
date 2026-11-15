@@ -78,10 +78,13 @@ function sectionIcon(where: string, rows: ProcRow[], isApp: boolean, all: ProcRo
 /** How the Processes table is laid out: grouped under where-it-runs and folder headers, or one
  *  flat list where app, folder and branch are ordinary columns. */
 export type View = "grouped" | "flat";
-/** Flat-view columns sorted by the plugin (running sorts the others). */
-export const FLAT_SORT = ["where", "dir", "branch"] as const;
-export type FlatSort = { key: (typeof FLAT_SORT)[number]; desc: boolean };
-export const isFlatSort = (key: unknown): key is FlatSort["key"] => (FLAT_SORT as readonly unknown[]).includes(key);
+/** Columns sorted by the plugin (running sorts the others): App, Folder and Branch in the flat
+ *  view, Ports in both. */
+export const PLUGIN_SORT = ["where", "dir", "branch", "ports"] as const;
+export type PluginSort = { key: (typeof PLUGIN_SORT)[number]; desc: boolean };
+export const isPluginSort = (key: unknown): key is PluginSort["key"] => (PLUGIN_SORT as readonly unknown[]).includes(key);
+/** Whether a plugin sort applies to a layout (the grouped layout has no App, Folder or Branch column). */
+export const pluginSortFor = (view: View, sort: PluginSort | undefined): PluginSort | undefined => (sort && (view === "flat" || sort.key === "ports") ? sort : undefined);
 
 /** Table column ↔ running's sort key. */
 export const COLUMN_SORT: Record<string, SortKey> = { name: "name", cpu: "cpu", mem: "memory", uptime: "started" };
@@ -105,8 +108,8 @@ export type Options = {
 	waiting?: (pid: number) => boolean;
 	/** Grouped (default) or flat. */
 	view?: View;
-	/** Flat view sorted by app, folder or branch instead of running's sort. */
-	flatSort?: FlatSort;
+	/** Sorted by app, folder, branch (flat view) or port instead of running's sort. */
+	pluginSort?: PluginSort;
 };
 
 // ── what a process is and how it's doing ─────────────────────────────────
@@ -281,6 +284,9 @@ export function build(snap: Snapshot, o: Options): Built {
         description: "Combined resident memory of the matching commands in this group, including their child processes. Shared memory may be counted by more than one process. Collapsing the group does not change this total.",
     });
 	const byKey = (a: ProcRow, b: ProcRow) => cmp(jobVal(a), jobVal(b)) || a.pid - b.pid;
+	const ps = pluginSortFor(o.view ?? "grouped", o.pluginSort);
+	const order = (a: ProcRow, b: ProcRow) => (ps ? pluginCompare(snap, a, b, ps) : 0) || byKey(a, b);
+	const portRank = (js: ProcRow[]) => portOf(js, !!ps?.desc);
 
 	const all = snap.rows;
 	const apps = all.filter((r) => r.kind === "app");
@@ -293,17 +299,6 @@ export function build(snap: Snapshot, o: Options): Built {
 		const pids = new Set(visible.map((j) => j.pid));
 		const childJobsByParent = new Map<number, ProcRow[]>();
 		for (const job of visible) if (job.parentRow !== undefined && pids.has(job.parentRow)) childJobsByParent.set(job.parentRow, [...(childJobsByParent.get(job.parentRow) ?? []), job]);
-		const flatSort = o.flatSort;
-		const order = (a: ProcRow, b: ProcRow) => {
-			if (flatSort) {
-				const x = flatText(snap, a, flatSort.key), y = flatText(snap, b, flatSort.key);
-				// Empty values (no branch) go last whichever way it's sorted.
-				if (!x !== !y) return x ? -1 : 1;
-				const c = (flatSort.desc ? -1 : 1) * x.localeCompare(y, undefined, { numeric: true });
-				if (c) return c;
-			}
-			return byKey(a, b);
-		};
 		const place = (j: ProcRow): Row => {
 			const childJobs = [...(childJobsByParent.get(j.pid) ?? [])].sort(order);
 			const members = sortTree(j.members, memberVal, cmp).map((m) => memberRow(snap, j, m, o));
@@ -312,7 +307,7 @@ export function build(snap: Snapshot, o: Options): Built {
 			return { ...jobRow(snap, j, o, childJobs), children: children.length ? children : undefined, open: childJobs.length > 0 || memberHit || undefined };
 		};
 		const roots = visible.filter((j) => j.parentRow === undefined || !pids.has(j.parentRow)).sort(order);
-		return { rows: roots.map(place), ...summary };
+		return { rows: capNesting(roots.map(place)), ...summary };
 	}
 
 	// Sections: by where, terminals before servers before apps, then by name (or the largest command for memory sorting).
@@ -320,7 +315,8 @@ export function build(snap: Snapshot, o: Options): Built {
 	for (const j of visible) { const where = j.where.startsWith("tmux") ? "tmux" : j.where; sections.set(where, [...(sections.get(where) ?? []), j]); }
 	const rank = (js: ProcRow[]) => Math.min(...js.map((j) => KIND_RANK[j.kind] ?? 9));
 	let ordered = [...sections.entries()].sort((a, b) => rank(a[1]) - rank(b[1]) || sectionLabel(a[0]).localeCompare(sectionLabel(b[0])));
-	if (rankGroups) ordered = ordered.sort((a, b) => cmp(groupVal(a[1], a[0]), groupVal(b[1], b[0])));
+	if (ps?.key === "ports") ordered = ordered.sort((a, b) => comparePorts(portRank(a[1]), portRank(b[1]), ps.desc));
+	else if (rankGroups) ordered = ordered.sort((a, b) => cmp(groupVal(a[1], a[0]), groupVal(b[1], b[0])));
 
 	const rows: Row[] = [];
 	for (const [where, js] of ordered) {
@@ -351,26 +347,68 @@ export function build(snap: Snapshot, o: Options): Built {
 		for (const j of roots) dirs.set(j.cwd, [...(dirs.get(j.cwd) ?? []), j]);
 		const directoryJobs = new Map([...dirs.entries()].map(([dir, roots]) => [dir, jobsUnder(roots)]));
         const dirRank = ([dir, roots]: [string, ProcRow[]]) => groupVal(o.sort === "memory" ? directoryJobs.get(dir)! : roots, dir);
-        const dirList = [...dirs.entries()].sort((a, b) => (rankGroups ? cmp(dirRank(a), dirRank(b)) : tildify(a[0]).localeCompare(tildify(b[0]), undefined, { numeric: true })));
+        const byDirName = (a: [string, ProcRow[]], b: [string, ProcRow[]]) => tildify(a[0]).localeCompare(tildify(b[0]), undefined, { numeric: true });
+        const dirList = [...dirs.entries()].sort((a, b) =>
+            ps?.key === "ports" ? comparePorts(portRank(directoryJobs.get(a[0])!), portRank(directoryJobs.get(b[0])!), ps.desc) || byDirName(a, b)
+            : rankGroups ? cmp(dirRank(a), dirRank(b)) : byDirName(a, b));
 		for (const [dir, djs] of dirList) {
 			const branch = dir && dir !== "/" ? (snap.branches[dir] ?? undefined) : undefined;
 			const group = [section, { id: `d:${where}:${dir}`, label: tildify(dir) || "—", strong: dir && dir !== "/" ? projectPart(tildify(dir)) : undefined, sub: branch ?? undefined, summary: memorySummary(directoryJobs.get(dir)!) }];
 			const place = (j: ProcRow): Row => {
-				const childJobs = [...(childJobsByParent.get(j.pid) ?? [])].sort(byKey);
+				const childJobs = [...(childJobsByParent.get(j.pid) ?? [])].sort(order);
 				const members = sortTree(j.members, memberVal, cmp).map((m) => memberRow(snap, j, m, o));
 				// Expanded when jobs were started from it, or the search matched one of its processes.
 				const memberHit = !s.empty && j.members.some((m) => s.test(memberSearchable(m)));
 				const children = [...nestMembers(j, members), ...childJobs.map(place)];
 				return { ...jobRow(snap, j, o, childJobs), children: children.length ? children : undefined, open: childJobs.length > 0 || memberHit || undefined };
 			};
-			for (const j of djs.sort(byKey)) rows.push({ ...place(j), group });
+			for (const j of djs.sort(order)) rows.push({ ...place(j), group });
 		}
 	}
-	return { rows, ...summary };
+	return { rows: capNesting(rows), ...summary };
+}
+
+/** How many levels of rows a job keeps (the job itself is level 1). Toolbelt refuses a tree
+ *  nested deeper than its protocol limit, and a test runner a dozen shells down gets there:
+ *  anything below the last level is listed, in order, under its ancestor at that level. */
+export const MAX_NESTING = 8;
+export function capNesting(rows: Row[], level = 1): Row[] {
+	return rows.map((r) => {
+		if (!r.children) return r;
+		if (level < MAX_NESTING) return { ...r, children: capNesting(r.children, level + 1) };
+		const flat: Row[] = [];
+		const walk = (list: Row[]) => {
+			for (const c of list) {
+				flat.push({ ...c, children: undefined });
+				if (c.children) walk(c.children);
+			}
+		};
+		walk(r.children);
+		return { ...r, children: flat };
+	});
+}
+
+/** Rows ordered by a plugin sort; rows without a value (no branch, no port) go last either way. */
+function pluginCompare(snap: Snapshot, a: ProcRow, b: ProcRow, ps: PluginSort): number {
+	if (ps.key === "ports") return comparePorts(portOf([a], ps.desc), portOf([b], ps.desc), ps.desc);
+	const x = flatText(snap, a, ps.key), y = flatText(snap, b, ps.key);
+	if (!x !== !y) return x ? -1 : 1;
+	return (ps.desc ? -1 : 1) * x.localeCompare(y, undefined, { numeric: true });
+}
+
+/** The port jobs sort by: their lowest port ascending, their highest descending (so the
+ *  biggest port leads a descending list). */
+function portOf(jobs: ProcRow[], desc: boolean): number | undefined {
+	const ports = jobs.flatMap((j) => j.listen.map((l) => l.port));
+	return ports.length ? (desc ? Math.max(...ports) : Math.min(...ports)) : undefined;
+}
+function comparePorts(x: number | undefined, y: number | undefined, desc: boolean): number {
+	if (x === undefined || y === undefined) return x === y ? 0 : x === undefined ? 1 : -1;
+	return (desc ? -1 : 1) * (x - y);
 }
 
 /** A job's app, folder or branch, as the flat view shows and sorts it. */
-function flatText(snap: Snapshot, r: ProcRow, key: FlatSort["key"]): string {
+function flatText(snap: Snapshot, r: ProcRow, key: Exclude<PluginSort["key"], "ports">): string {
 	if (key === "where") return sectionLabel(r.where);
 	if (key === "dir") return tildify(r.cwd);
 	return (r.cwd && r.cwd !== "/" ? snap.branches[r.cwd] : undefined) ?? "";
