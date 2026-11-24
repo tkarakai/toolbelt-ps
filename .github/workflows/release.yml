@@ -18,7 +18,7 @@ concurrency:
   cancel-in-progress: false
 jobs:
   plan:
-    runs-on: macos-15
+    runs-on: ubuntu-latest
     timeout-minutes: 10
     permissions:
       contents: read
@@ -47,6 +47,7 @@ jobs:
   build:
     needs: plan
     if: needs.plan.outputs.release == 'true' && needs.plan.outputs.reuse != 'true'
+    # macOS: the build compiles and runs the standalone macOS arm64 `running` binary.
     runs-on: macos-15
     timeout-minutes: 40
     permissions:
@@ -107,7 +108,7 @@ jobs:
       cancel-in-progress: false
     needs: [plan, build, native]
     if: always() && needs.plan.outputs.release == 'true' && (needs.build.result == 'success' || needs.plan.outputs.reuse == 'true') && (needs.native.result == 'success' || needs.plan.outputs.product != 'plugin')
-    runs-on: macos-15
+    runs-on: ubuntu-latest
     timeout-minutes: 20
     permissions:
       contents: write

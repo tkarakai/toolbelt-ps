@@ -32,6 +32,10 @@ ranges and capabilities accurate. Update the exact public SDK URL and lockfile t
 upgrading tooling; publish compatible SDK/host prerequisites before consuming new functionality.
 Use isolated profiles, temporary homes and disposable resources for smoke tests.
 
+The build and the native check run on macOS: the build compiles and runs the standalone macOS
+arm64 `running` binary, and the plugin drives macOS tools. Planning and publishing only check
+hashes and talk to GitHub, so they run on Linux.
+
 Retries accept `--pr <merged-release-PR>` or `--source <merge-SHA>` before tagging.
 The workflow forwards the optional source selector, retains its publisher from the
 trusted workflow commit before checking out a historical source, and serializes
