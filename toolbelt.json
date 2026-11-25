@@ -2,7 +2,7 @@
   "id": "processes",
   "name": "Processes",
   "icon": "activity",
-  "version": "0.1.7",
+  "version": "0.1.8",
   "description": "The processes you started in your terminals.",
   "protocol": 1,
   "entry": "index.ts",
