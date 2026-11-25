@@ -1,6 +1,8 @@
 # Changelog
 
 ## Unreleased
+
+## 0.1.8 — 2026-11-25
 - Keep Processes away from AI agents. ToolBelt's agent interface (Settings → Agents) doesn't list Processes or let agents read it, because its rows and kept commands can contain command lines, environment values and paths. Older ToolBelt versions ignore this.
 
 ## 0.1.7 — 2026-11-15
