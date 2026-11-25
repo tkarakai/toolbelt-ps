@@ -34,6 +34,9 @@
     "path": "payload/bin/running",
     "cleanupScreen": "settings"
   },
+  "agent": {
+    "access": "none"
+  },
   "formatVersion": 1,
   "requires": {
     "host": ">=0.3.5",
