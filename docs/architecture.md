@@ -12,6 +12,7 @@ this source or install its dependencies.
 | `src/index.ts` | Screens, dialogs, events, preferences, polling and quick view |
 | `src/core.ts` | Request/response client for the owned engine over JSON lines |
 | `src/model.ts` | Classification, grouping, sorting, filtering and row construction |
+| `src/scope.ts` | Scope and layout controls, the Processes view declaration and how a view reads |
 | `src/agents.ts` | Agent binaries/packages, display names and colors |
 | `src/conversation.ts` | Transcript parsing for conversation nodes |
 | `src/cmux.ts` | CMUX identity and navigation helpers |
@@ -57,6 +58,24 @@ observer lists. The host owns plugin/helper process-group termination and startu
 A probe starts the package against staged managed data and waits for readiness before the
 host promotes an installation or update.
 
+Processes speaks protocol 2 (Toolbelt 0.6.0 or newer, public SDK 0.4.0). The Processes screen
+declares a view (`processesView` in `src/scope.ts`): search, the Agent and State filters, and the
+`process-scope` and `process-view` controls. The SDK applies their events, so they never reach
+`onEvent`, and each open instance renders from its own `View` (`readView`). Every person's screen
+shares the `person` instance; Toolbelt saves its view and sends it back when the screen opens, so
+Processes saves none of it. Agent instances would get their own views, but the manifest's
+`agent.access: none` keeps agents away, because rows show command lines and environment values.
+The declared defaults come from the `showAll`, `filters` and `view` values earlier versions saved
+in `prefs.json`. Those values are read only and written back unchanged, so the defaults don't move
+and people keep what they had chosen. The badge follows the person's scope, as last rendered.
+
+Sort is not part of the view. running-core keeps one sort for everyone (`setSort`, stored in
+`running/settings.json` and shared with the `running` TUI), and the plugin's own App, Folder, Branch
+and Ports sort (`prefs.flatSort`) comes with it. A per-instance sort would mean sorting in the plugin
+instead of the engine. With no agent instances there is only one viewer, so `sort` events still
+reach `onEvent`. Dialogs (Peek, Keep, Edit) belong to the person: only the person sends events,
+and only the `person` instance renders the open dialog.
+
 `handoffActions` declares `focus` and `focus-kept`, requiring `native.handoff`. The generic
 host can dismiss its popover before delivering those events. Processes implements terminal
 navigation; the host does not interpret Processes action names.
@@ -65,7 +84,8 @@ navigation; the host does not interpret Processes action names.
 
 Managed schema 1 uses these paths beneath the selected Toolbelt config root:
 
-- `data/processes/prefs.json`: display, filter and terminal preferences.
+- `data/processes/prefs.json`: the default terminal and the plugin's own sort, plus the scope,
+  layout and filters that earlier versions saved, read as the view's defaults.
 - `data/processes/running/kept.yaml`: kept commands, directories, environment and notes.
 - `data/processes/running/settings.json`: engine sort settings.
 - `data/processes/commands.log`: the managed command log.
@@ -118,9 +138,9 @@ Group memory summaries bind to the `mem` table column. The host aligns their val
 process memory values and hides them when the Memory column is hidden. Toolbelt 0.2.2
 or newer is required for this layout. Group totals and sorting semantics are unchanged.
 
-The Processes toolbar uses Your Work / All services segments. Both preserve the existing
-`showAll` preference; the broader scope adds app/system listeners, not every OS process.
-`src/scope.ts` defines the control and validates explicit field values. This feature requires
+The Processes toolbar uses Your Work / All services segments (the `process-scope` view control,
+starting from the saved `showAll`); the broader scope adds app/system listeners, not every OS process.
+`src/scope.ts` defines the control; unknown values read as Your Work. This feature requires
 Toolbelt 0.3.1 or newer and public SDK 0.3.2.
 
 The Processes table declares default column widths: Process grows with the window (minimum
@@ -128,8 +148,8 @@ The Processes table declares default column widths: Process grows with the windo
 from the right in the person's displayed order. It also stores resized widths and dragged
 column order. This requires Toolbelt 0.3.5 or newer and public SDK 0.3.3.
 
-A Grouped / Flat segment beside the scope sets the table layout (`prefs.view`, default
-grouped). Grouped keeps section and folder headers. Flat drops them and shows App, Folder and
+A Grouped / Flat segment beside the scope sets the table layout (the `process-view` view
+control, starting from the saved `prefs.view`, else grouped). Grouped keeps section and folder headers. Flat drops them and shows App, Folder and
 Branch as columns. Jobs started from a job, and a job's own processes, stay nested under it.
 The two layouts use different table ids (`processes`, `processes-flat`), so each keeps its own
 widths and order. Rows keep their pid ids, so selection carries over. Running sorts Process,

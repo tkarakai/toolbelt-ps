@@ -1,6 +1,8 @@
 # Changelog
 
 ## Unreleased
+- Requires ToolBelt 0.6.0 or newer. Search, the Agent and State filters, Your Work / All services and Grouped / Flat are now saved by ToolBelt and stay the same wherever you open Processes, such as on a paired device. Upgrading keeps the choices you had.
+- Build with public SDK 0.4.0 (plugin protocol 2).
 
 ## 0.1.8 — 2026-11-25
 - Keep Processes away from AI agents. ToolBelt's agent interface (Settings → Agents) doesn't list Processes or let agents read it, because its rows and kept commands can contain command lines, environment values and paths. Older ToolBelt versions ignore this.

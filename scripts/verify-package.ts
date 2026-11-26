@@ -34,7 +34,7 @@ try {
     timeout: 15000,
   });
   const send = (msg: unknown) => proc.stdin.write(JSON.stringify(msg) + "\n");
-  send({ type: "hello", protocol: 1 });
+  send({ type: "hello", protocol: 2 });
   let buffer = "",
     ready = false,
     prepared = false;
@@ -50,8 +50,8 @@ try {
       if (msg.type === "ready") {
         ready = true;
         for (const screen of manifest.screens)
-          send({ type: "open", surface: `screen:${screen.id}` });
-        send({ type: "open", surface: "quick" });
+          send({ type: "open", surface: `screen:${screen.id}`, instance: "person" });
+        send({ type: "open", surface: "quick", instance: "person" });
       }
       if (msg.type === "render") {
         rendered.add(msg.surface);
