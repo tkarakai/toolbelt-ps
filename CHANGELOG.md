@@ -1,6 +1,8 @@
 # Changelog
 
 ## Unreleased
+
+## 0.2.0 — 2026-11-26
 - Requires ToolBelt 0.6.0 or newer. Search, the Agent and State filters, Your Work / All services and Grouped / Flat are now saved by ToolBelt and stay the same wherever you open Processes, such as on a paired device. Upgrading keeps the choices you had.
 - Build with public SDK 0.4.0 (plugin protocol 2).
 
