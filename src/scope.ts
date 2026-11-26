@@ -1,10 +1,14 @@
-import type { Node } from "@toolbelt/sdk";
-import type { View } from "./model";
+import type { Node, View as SdkView, ViewDeclaration } from "@toolbelt/sdk";
+import { FILTERS, type FilterId, type View } from "./model";
+
+/** Page control ids: the scope and the table layout. Form and field ids equal them. */
+export const SCOPE = "process-scope";
+export const LAYOUT = "process-view";
 
 export function scopeControl(showAll: boolean): Extract<Node, { type: "segmented" }> {
 	return {
 		type: "segmented" as const,
-		id: "process-scope",
+		id: SCOPE,
 		label: "Process scope",
 		value: showAll ? "services" : "work",
 		options: [
@@ -18,7 +22,7 @@ export function scopeControl(showAll: boolean): Extract<Node, { type: "segmented
 export function viewControl(view: View): Extract<Node, { type: "segmented" }> {
 	return {
 		type: "segmented" as const,
-		id: "process-view",
+		id: LAYOUT,
 		label: "Table layout",
 		value: view,
 		options: [
@@ -33,13 +37,29 @@ export function withScope(page: Extract<Node, { type: "page" }>, showAll: boolea
 	return { ...page, controls: [scopeControl(showAll), ...(view ? [viewControl(view)] : [])] };
 }
 
-export function viewValue(payload: Record<string, unknown> | undefined): View | undefined {
-	if (payload?.form !== "process-view" || payload.field !== "process-view") return;
-	if (payload.value === "grouped" || payload.value === "flat") return payload.value;
+/** What Processes saved before ToolBelt kept the view (prefs.json): only read, as where views start. */
+export type SavedChoices = { showAll?: boolean; view?: string; filters?: Partial<Record<FilterId, string[]>> };
+
+/**
+ * The Processes screen's view: search, the Agent and State filters, and the scope and layout
+ * controls. The SDK applies their events and ToolBelt saves the person's; the choices people saved
+ * before are the defaults, so nothing changes for them on upgrade. Sort stays the plugin's: the
+ * engine sorts once for everyone (see docs/architecture.md).
+ */
+export function processesView(saved: SavedChoices): ViewDeclaration {
+	return {
+		search: true,
+		filters: Object.fromEntries(FILTERS.map((f) => [f.id, [...(saved.filters?.[f.id] ?? [])]])),
+		controls: { [SCOPE]: saved.showAll === true ? "services" : "work", [LAYOUT]: saved.view === "flat" ? "flat" : "grouped" },
+	};
 }
 
-export function scopeValue(payload: Record<string, unknown> | undefined): boolean | undefined {
-	if (payload?.form !== "process-scope" || payload.field !== "process-scope") return;
-	if (payload.value === "work") return false;
-	if (payload.value === "services") return true;
+/** The choices a view makes on the Processes screen. Unknown control values read as Your Work and Grouped. */
+export function readView(view: Pick<SdkView, "search" | "filters" | "controls">): { query: string; filters: Partial<Record<FilterId, string[]>>; showAll: boolean; layout: View } {
+	return {
+		query: view.search,
+		filters: Object.fromEntries(FILTERS.map((f) => [f.id, [...(view.filters[f.id] ?? [])]])),
+		showAll: view.controls[SCOPE] === "services",
+		layout: view.controls[LAYOUT] === "flat" ? "flat" : "grouped",
+	};
 }

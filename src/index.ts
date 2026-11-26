@@ -1,4 +1,4 @@
-import { withScope, scopeValue, viewValue } from "./scope";
+import { processesView, readView, withScope } from "./scope";
 import { asset } from "@toolbelt/sdk";
 // Processes: a Toolbelt plugin that drives running-core (src/serve.ts in
 // github.com/tkarakai/running) and draws its processes, kept commands and settings. It has
@@ -11,7 +11,7 @@ import { asset } from "@toolbelt/sdk";
 // terminal UI on the PATH.
 import { existsSync, readFileSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
-import { dataDir, definePlugin, type Action, type Column, type Context, type Dialog, type Dot, type Field, type Message, type Node, type Row } from "@toolbelt/sdk";
+import { dataDir, definePlugin, PERSON, type Action, type Column, type Context, type Dialog, type Dot, type Field, type Message, type Node, type Row, type View as SdkView } from "@toolbelt/sdk";
 import { readConversation } from "./conversation";
 import { Core, type Hello, type KeepDraft, type Peek, type Snapshot, type SortKey } from "./core";
 import { coreScript } from "./paths";
@@ -20,7 +20,7 @@ import { claudeTranscript, isT3, readT3Threads, threadOf, type T3Thread } from "
 import { Tui } from "./tui";
 import { LIMITS } from "@toolbelt/sdk/package";
 import { claudeWaiting, AGENTS } from "./agents";
-import { agentOf, agentState, build, COLUMN_SORT, displayName, dur, facetCounts, FILTERS, locate, projectPart, SERVICE, SORT_COLUMN, sourceLabel, statusDot, stripAnsi, tildify, webUrl, isPluginSort, threadOfRow, pluginSortFor, fitRows, countValues, type Built, type FilterId, type PluginSort, type Options, type Service, type View } from "./model";
+import { agentOf, agentState, build, COLUMN_SORT, displayName, dur, facetCounts, FILTERS, locate, projectPart, SERVICE, SORT_COLUMN, sourceLabel, statusDot, stripAnsi, tildify, webUrl, isPluginSort, threadOfRow, pluginSortFor, fitRows, countValues, type FilterId, type PluginSort, type Options, type Service, type View } from "./model";
 
 const core = new Core(coreScript(), {
 	onChanged: () => void refresh(),
@@ -44,8 +44,9 @@ function discoverTerminals() {
     }
     if (!availableTerminals()[terminal]) terminal = prefs.terminal = "terminal";
 }
-let query = "";
-// The person's choices, kept in the plugin's data folder across restarts.
+// The person's choices, kept in the plugin's data folder across restarts. ToolBelt keeps search,
+// filters, scope and layout (the screen's view); `showAll`, `filters` and `view` are what earlier
+// versions saved here, now only read as where the view starts and written back unchanged.
 const PREFS = join(dataDir(), "prefs.json");
 const prefs: { showAll: boolean; terminal: string; filters: Partial<Record<FilterId, string[]>>; view?: View; /** The plugin's own sort (App, Folder, Branch, Ports); kept under its original name. */ flatSort?: PluginSort } = { showAll: false, terminal: "terminal", filters: {} };
 try {
@@ -58,15 +59,16 @@ const savePrefs = () => {
 		writeFileSync(PREFS, JSON.stringify(prefs, null, "\t") + "\n");
 	} catch {}
 };
-let showAll = prefs.showAll;
+/** The person's scope (their view of Processes, as last rendered), for the badge. */
+let personShowAll = prefs.showAll;
 let terminal = prefs.terminal;
 let refreshing = false;
-let last: Built | null = null;
 /** Recent CPU / memory per pid, for the sparklines. */
 const history = new Map<number, { cpu: number[]; mem: number[] }>();
 const HISTORY = 30;
 
-/** The dialog over the Processes or Kept page. */
+/** The dialog over the Processes or Kept page. Only the person sends events, so it's theirs: only
+ *  the person's instance (`PERSON`) shows it. */
 type Open =
 	| { kind: "output"; pid: number; child?: number; source?: string; data?: Peek; messages?: Message[]; error?: string; thread?: T3Thread }
 	/** Keep a process (`pid`), edit a kept command (`index`), or add one by hand (neither). */
@@ -90,7 +92,7 @@ async function refresh() {
 			if (row.agent) row.agent.title = thread.title;
 		}
 		recordHistory(snap);
-		ctx.badge(snap.rows.filter((r) => showAll || r.kind !== "app").length || null);
+		updateBadge();
 		if (dialog?.kind === "output") await loadOutput();
 		ctx.invalidate();
 	} catch (e) {
@@ -99,6 +101,10 @@ async function refresh() {
 	} finally {
 		refreshing = false;
 	}
+}
+
+function updateBadge() {
+	if (snap) ctx.badge(snap.rows.filter((r) => personShowAll || r.kind !== "app").length || null);
 }
 
 function recordHistory(s: Snapshot) {
@@ -177,7 +183,7 @@ function waitingCheck(): Options["waiting"] {
 }
 
 /** Every filter option stays visible, including zero counts. */
-function filtersFor(o: Options) {
+function filtersFor(o: Options, selected: Options["filters"]) {
 	if (!snap) return [];
 	const counts = facetCounts(snap, o);
 	const option = (id: FilterId, value: string, label: string, dot?: Dot) => ({ value, label, count: counts[id].get(value) ?? 0, ...(dot ? { dot } : {}) });
@@ -185,7 +191,7 @@ function filtersFor(o: Options) {
 		agent: [...AGENTS.map((a) => option("agent", a.id, a.name, a.hue)), option("agent", "none", "Not an agent")],
 		service: (Object.keys(SERVICE) as Service[]).map((k) => option("service", k, SERVICE[k].label, SERVICE[k].dot)),
 	};
-	return FILTERS.map((f) => ({ ...f, options: options[f.id], selected: prefs.filters[f.id] ?? [] }));
+	return FILTERS.map((f) => ({ ...f, options: options[f.id], selected: selected?.[f.id] ?? [] }));
 }
 
 const sortKey = (): SortKey => snap?.sort.key ?? "started";
@@ -247,25 +253,30 @@ function keepDialog(d: Extract<Open, { kind: "keep" }>): Dialog {
 	};
 }
 
-const currentDialog = (screen: "processes" | "kept"): Dialog | undefined => {
-	if (!dialog || dialogScreen !== screen) return undefined;
+const currentDialog = (screen: "processes" | "kept", view: SdkView): Dialog | undefined => {
+	if (!dialog || dialogScreen !== screen || view.instance !== PERSON) return undefined;
 	return dialog.kind === "output" ? outputDialog(dialog) : keepDialog(dialog);
 };
 
-function processesScreen(): Node {
+/** The Processes screen as one viewer's view (search, filters, scope, layout) shows it. */
+function processesScreen(_c: Context, v: SdkView): Node {
 	if (core.error) return unavailable();
-	const view: View = prefs.view === "flat" ? "flat" : "grouped";
+	const { query, filters, showAll, layout: view } = readView(v);
+	if (v.instance === PERSON && personShowAll !== showAll) {
+		personShowAll = showAll;
+		updateBadge();
+	}
 	const pluginSort = pluginSortFor(view, prefs.flatSort);
-	const o: Options = { query, showAll, sort: sortKey(), desc: sortDesc(), history, filters: prefs.filters, waiting: waitingCheck(), view, pluginSort, t3 };
-	last = snap ? build(snap, o) : null;
-	const filtering = FILTERS.some((f) => prefs.filters[f.id]?.length);
+	const o: Options = { query, showAll, sort: sortKey(), desc: sortDesc(), history, filters, waiting: waitingCheck(), view, pluginSort, t3 };
+	const last = snap ? build(snap, o) : null;
+	const filtering = FILTERS.some((f) => filters[f.id]?.length);
 	const page = withScope({
 		type: "page",
 		search: { placeholder: "Filter by command, folder, port, pid, agent…" },
-		filters: filtersFor(o),
+		filters: filtersFor(o, filters),
 		summary: last ? `${last.shown} of ${last.total - last.hiddenApps} processes${last.hiddenApps ? " · app & system services hidden" : ""}` : "Loading…",
 		highlight: last?.search.highlight(),
-		dialog: currentDialog("processes"),
+		dialog: currentDialog("processes", v),
 		children: [
 			{
 				type: "table",
@@ -334,14 +345,14 @@ const PROCESS_ACTIONS: Action[] = [
 	{ id: "kill", label: "Force stop", icon: "octagon-x", tone: "destructive", group: "stop", confirm: "Force stop it now (SIGKILL)? It gets no chance to clean up." },
 ];
 
-function keptScreen(): Node {
+function keptScreen(_c: Context, v: SdkView): Node {
 	if (core.error) return unavailable();
 	const kept = snap?.kept ?? [];
 	return {
 		type: "page",
 		summary: `${kept.length} kept · ${kept.filter((k) => k.livePid).length} running`,
 		actions: [{ id: "add-kept", label: "Add…", icon: "plus" }],
-		dialog: currentDialog("kept"),
+		dialog: currentDialog("kept", v),
 		children: [
 			{
 				type: "table",
@@ -491,6 +502,9 @@ const ctx = definePlugin({
 		if ((s === "screen:processes" || s === "screen:kept") && dialog) dialog = null;
 		schedule(c);
 	},
+	// Search, filters, scope and layout: the SDK applies their events (they don't reach onEvent)
+	// and ToolBelt saves the person's. Read once, at the handshake.
+	views: { "screen:processes": processesView(prefs) },
 	render: {
 		"screen:processes": processesScreen,
 		"screen:kept": keptScreen,
@@ -525,20 +539,6 @@ const ctx = definePlugin({
 				const d = dialog;
 				c.copy(d.source === "@transcript" ? (d.messages ?? []).map((m) => (m.role === "tool" ? `[${m.tool?.name}] ${m.text}` : `${m.author}:\n${m.text}`)).join("\n\n") : (d.data?.lines ?? []).map(stripAnsi).join("\n"));
 				return c.toast("Output copied", "success");
-			}
-			if (event === "field" && payload?.form === "process-view") {
-				const view = viewValue(payload);
-				if (view === undefined) return;
-				prefs.view = view;
-				savePrefs();
-				return c.invalidate();
-			}
-			if (event === "field" && payload?.form === "process-scope") {
-				const selected = scopeValue(payload);
-				if (selected === undefined) return;
-				showAll = prefs.showAll = selected;
-				savePrefs();
-				return c.invalidate();
 			}
 			if (event === "field" && payload?.form === "keep" && dialog?.kind === "keep") {
 				const f = String(payload.field);
@@ -584,24 +584,16 @@ const ctx = definePlugin({
                 return;
             }
             switch (event) {
-				case "search":
-					query = String(payload?.query ?? "");
-					return c.invalidate();
 				case "refresh":
 					break;
-				case "filter": {
-					const id = String(payload?.filter) as FilterId;
-					if (!FILTERS.some((f) => f.id === id)) break;
-					prefs.filters = { ...prefs.filters, [id]: Array.isArray(payload?.values) ? payload.values.map(String) : [] };
-					savePrefs();
-					return c.invalidate();
-				}
 				case "add-kept":
 					dialog = { kind: "keep", draft: { title: "Add a kept command", name: "", command: "", cwd: "~", note: "", env: [] } };
 					dialogScreen = "kept";
 					return c.invalidate();
 				case "sort": {
-					// App, Folder, Branch (flat layout) and Ports are sorted here; the others by running.
+					// Not part of the SDK's views: running sorts one list for everyone, and the plugin's
+					// own sort is kept with it. App, Folder, Branch (flat layout) and Ports are sorted
+					// here; the others by running.
 					if (isPluginSort(payload?.key)) {
 						prefs.flatSort = { key: payload.key, desc: !!payload?.desc };
 						savePrefs();
