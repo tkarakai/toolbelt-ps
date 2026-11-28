@@ -4,7 +4,7 @@
   "icon": "activity",
   "version": "0.2.0",
   "description": "The processes you started in your terminals.",
-  "protocol": 2,
+  "protocol": 3,
   "entry": "index.ts",
   "screens": [
     {
@@ -39,7 +39,7 @@
   },
   "formatVersion": 1,
   "requires": {
-    "host": ">=0.6.0",
+    "host": ">=0.10.0",
     "bun": ">=1.3.0",
     "platforms": [
       "darwin-arm64"

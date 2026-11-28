@@ -8,7 +8,6 @@ import {
 import { makeTerminalArchives } from "./scripts/make-terminal-archives";
 export default {
   repo: "tkarakai/toolbelt-ps",
-  hostVersion: "0.6.0",
   products: {
     plugin: {
       changelog: "CHANGELOG.md",
@@ -19,10 +18,11 @@ export default {
       },
       async build() {
         await run(["bun", "scripts/build.ts"]);
+        // Probed as the ToolBelt version the pinned SDK matches (`HOST_VERSION`).
         return packagePlugin(
           "dist/package",
           "artifacts",
-          "0.6.0",
+          undefined,
           await makeTerminalArchives(),
         );
       },
