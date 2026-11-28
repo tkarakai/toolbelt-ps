@@ -34,7 +34,7 @@ try {
     timeout: 15000,
   });
   const send = (msg: unknown) => proc.stdin.write(JSON.stringify(msg) + "\n");
-  send({ type: "hello", protocol: 2 });
+  send({ type: "hello", protocol: 3 });
   let buffer = "",
     ready = false,
     prepared = false;

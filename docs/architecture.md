@@ -9,7 +9,8 @@ this source or install its dependencies.
 
 | Path | Responsibility |
 | --- | --- |
-| `src/index.ts` | Screens, dialogs, events, preferences, polling and quick view |
+| `src/index.ts` | The package entry: runs the plugin definition over ToolBelt's transport |
+| `src/plugin.ts` | Declarations, screens, dialogs, events, preferences, polling and quick view |
 | `src/core.ts` | Request/response client for the owned engine over JSON lines |
 | `src/model.ts` | Classification, grouping, sorting, filtering and row construction |
 | `src/scope.ts` | Scope and layout controls, the Processes view declaration and how a view reads |
@@ -58,7 +59,7 @@ observer lists. The host owns plugin/helper process-group termination and startu
 A probe starts the package against staged managed data and waits for readiness before the
 host promotes an installation or update.
 
-Processes speaks protocol 2 (Toolbelt 0.6.0 or newer, public SDK 0.4.0). The Processes screen
+Processes speaks protocol 3 (ToolBelt 0.10.0 or newer, public SDK 0.7.0). The Processes screen
 declares a view (`processesView` in `src/scope.ts`): search, the Agent and State filters, and the
 `process-scope` and `process-view` controls. The SDK applies their events, so they never reach
 `onEvent`, and each open instance renders from its own `View` (`readView`). Every person's screen
@@ -73,8 +74,20 @@ Sort is not part of the view. running-core keeps one sort for everyone (`setSort
 `running/settings.json` and shared with the `running` TUI), and the plugin's own App, Folder, Branch
 and Ports sort (`prefs.flatSort`) comes with it. A per-instance sort would mean sorting in the plugin
 instead of the engine. With no agent instances there is only one viewer, so `sort` events still
-reach `onEvent`. Dialogs (Peek, Keep, Edit) belong to the person: only the person sends events,
-and only the `person` instance renders the open dialog.
+reach `onEvent`. Dialogs (Peek, Keep, Edit) belong to the person: only events from the `person`
+instance open or use one, only that instance renders it, and closing the person's Processes or Kept
+screen closes it (`onClose` fires for every instance).
+
+`ACTIONS` and `FORMS` in `src/plugin.ts` declare every action id the trees and toasts use, and
+every form, with its effect. ToolBelt rejects a render that uses anything undeclared, and journals
+`write`, `external` and `destructive` events. Opening apps, terminals, browsers and Finder,
+starting kept commands, restarting and installing the TUI are `external`; stop, force stop,
+forget and removing the TUI are `destructive`; saving, reordering and Undo are `write`; dialogs,
+Peek, copying and checks are `view`. The Keep dialog and Peek's output source are `view` forms
+(drafts in the person's instance); Settings is a `write` form. `onEvent` returns `false` for an
+event it doesn't know or whose row, kept command or dialog is gone, and a failure is shown as a
+toast and reported as the event's error. `test/processes-protocol.test.ts` runs the plugin through
+the SDK's `fakeHost`, which checks renders and messages as ToolBelt does.
 
 `handoffActions` declares `focus` and `focus-kept`, requiring `native.handoff`. The generic
 host can dismiss its popover before delivering those events. Processes implements terminal

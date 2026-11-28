@@ -1,4 +1,4 @@
-// The plugin over protocol 2, end to end: src/index.ts runs as ToolBelt would start it, with a
+// The plugin over protocol 3, end to end: src/index.ts runs as ToolBelt would start it, with a
 // fake running-core (test/fixtures/fake-core), a temporary home and a temporary data folder.
 import { afterAll, beforeAll, describe, expect, test } from "bun:test";
 import { mkdtempSync, mkdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
@@ -32,7 +32,8 @@ async function next(match: (m: Msg) => boolean, ms = 5000): Promise<Msg> {
 }
 const rendered = (surface: string, instance: string, match: (tree: any) => boolean = () => true) =>
 	next((m) => m.type === "render" && m.surface === surface && m.instance === instance && match(m.tree));
-const event = (surface: string, instance: string, name: string, payload?: unknown) => send({ type: "event", surface, instance, name, payload });
+let events = 0;
+const event = (surface: string, instance: string, name: string, payload?: unknown) => send({ type: "event", id: `e${++events}`, surface, instance, name, payload, origin: "person" });
 const table = (tree: any) => tree.children.find((c: any) => c.type === "table");
 const rowIds = (tree: any) => table(tree).rows.map((r: any) => r.id);
 const control = (tree: any, id: string) => tree.controls.find((c: any) => c.id === id).value;
@@ -71,7 +72,7 @@ beforeAll(async () => {
 			}
 		}
 	})();
-	send({ type: "hello", protocol: 2, capabilities: ["ui.core"] });
+	send({ type: "hello", protocol: 3, capabilities: ["ui.core"] });
 	await next((m) => m.type === "ready", 10000);
 });
 afterAll(async () => {
@@ -81,11 +82,11 @@ afterAll(async () => {
 	rmSync(root, { recursive: true, force: true });
 });
 
-describe("protocol 2 views", () => {
+describe("protocol 3 views", () => {
 	test("hello declares the Processes view, starting from what people saved before", () => {
 		const hello = messages.find((m) => m.type === "hello")!;
-		expect(hello.protocol).toBe(2);
-		expect(hello.views).toEqual({
+		expect(hello.protocol).toBe(3);
+		expect(hello.declarations.views).toEqual({
 			[SCREEN]: { search: true, filters: { agent: ["claude"], service: [] }, controls: { "process-scope": "services", "process-view": "flat" } },
 		});
 	});

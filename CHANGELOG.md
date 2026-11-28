@@ -1,6 +1,7 @@
 # Changelog
 
 ## Unreleased
+- Requires ToolBelt 0.10.0 or newer (plugin protocol 3, public SDK 0.7.0). Processes declares what each of its actions does: opening a terminal, app, browser or Finder, starting a kept command, restarting and installing the terminal UI reach outside ToolBelt; Stop, Force stop, Forget and removing the terminal UI are destructive. ToolBelt's change journal records them. Processes still isn't offered to AI agents.
 
 ## 0.2.0 — 2026-11-26
 - Requires ToolBelt 0.6.0 or newer. Search, the Agent and State filters, Your Work / All services and Grouped / Flat are now saved by ToolBelt and stay the same wherever you open Processes, such as on a paired device. Upgrading keeps the choices you had.
